@@ -8,7 +8,6 @@ execs
 /k8s
 dist
 notes
-vendor
 go.mod1
 go.mod2
 gen.sh

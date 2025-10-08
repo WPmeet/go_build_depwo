@@ -1,4 +1,7 @@
 <img src="assets/k9s.png" alt="k9s">
+## k9s (vendored fork)
+This is a fork of [derailed/k9s](https://github.com/derailed/k9s) with all
+Go dependencies vendored for offline builds.
 
 ## K9s - Kubernetes CLI To Manage Your Clusters In Style!
 
