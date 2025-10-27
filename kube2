@@ -1,0 +1,39 @@
+function AddOrUpdate-IKP {
+  param(
+    [Parameter(Mandatory=$true)][ValidateSet('ikp-cn','ikp-hk','ikp-uk')]$Name,
+    [Parameter(Mandatory=$true)][string]$ApiServer,   # e.g. https://api.ikp1003anp.cloud.uk.hsbc:6443
+    [Parameter(Mandatory=$true)][string]$IssuerUrl,   # see below
+    [string]$ClientId = "kubectl",
+    [string]$CaFile = "$HOME\.kube\openunison-ca.pem"
+  )
+  $rt = Read-Host "Paste refresh_token for $Name"
+
+  # cluster (idempotent)
+  kubectl config set-cluster $Name `
+    --server=$ApiServer `
+    --certificate-authority=$CaFile `
+    --embed-certs=false | Out-Null
+
+  # user with built-in OIDC provider (uses your refresh_token)
+  kubectl config set-credentials "$Name-user" `
+    --auth-provider=oidc `
+    --auth-provider-arg=idp-issuer-url=$IssuerUrl `
+    --auth-provider-arg=client-id=$ClientId `
+    --auth-provider-arg=idp-certificate-authority=$CaFile `
+    --auth-provider-arg=refresh-token=$rt | Out-Null
+
+  # context
+  kubectl config set-context $Name --cluster=$Name --user="$Name-user" | Out-Null
+
+  Write-Host "✔ $Name configured. Use: kubectl config use-context $Name"
+}
+
+# Example issuers from your screenshot:
+# CN: https://oidc.ikp400lanp.cloud.cn.hsbc/k8stoken/
+# HK: https://oidc.ikp400lanp.cloud.hk.hsbc/k8stoken/
+# UK: https://oidc.ikp1003anp.cloud.uk.hsbc/k8stoken/
+
+# Run one per cluster (fill in the API server you see in the portal):
+# AddOrUpdate-IKP -Name ikp-uk -ApiServer "https://api.ikp1003anp.cloud.uk.hsbc:6443" -IssuerUrl "https://oidc.ikp1003anp.cloud.uk.hsbc/k8stoken/"
+# AddOrUpdate-IKP -Name ikp-hk -ApiServer "https://api.ikp400lanp.cloud.hk.hsbc:6443" -IssuerUrl "https://oidc.ikp400lanp.cloud.hk.hsbc/k8stoken/"
+# AddOrUpdate-IKP -Name ikp-cn -ApiServer "https://api.ikp400lanp.cloud.cn.hsbc:6443" -IssuerUrl "https://oidc.ikp400lanp.cloud.cn.hsbc/k8stoken/"
