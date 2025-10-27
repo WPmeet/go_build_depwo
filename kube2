@@ -1,39 +1,70 @@
-function AddOrUpdate-IKP {
-  param(
-    [Parameter(Mandatory=$true)][ValidateSet('ikp-cn','ikp-hk','ikp-uk')]$Name,
-    [Parameter(Mandatory=$true)][string]$ApiServer,   # e.g. https://api.ikp1003anp.cloud.uk.hsbc:6443
-    [Parameter(Mandatory=$true)][string]$IssuerUrl,   # see below
-    [string]$ClientId = "kubectl",
-    [string]$CaFile = "$HOME\.kube\openunison-ca.pem"
-  )
-  $rt = Read-Host "Paste refresh_token for $Name"
+<#
+  AddOrUpdate-IKP.ps1
+  --------------------
+  Configures IKP (HSBC) Kubernetes clusters using built-in OIDC auth-provider.
+  Works without kubelogin.exe — just paste the refresh_token from the portal.
+#>
 
-  # cluster (idempotent)
-  kubectl config set-cluster $Name `
-    --server=$ApiServer `
-    --certificate-authority=$CaFile `
-    --embed-certs=false | Out-Null
+param(
+  [Parameter(Mandatory = $true)]
+  [ValidateSet('ikp-cn','ikp-hk','ikp-uk')]
+  [string]$Name
+)
 
-  # user with built-in OIDC provider (uses your refresh_token)
-  kubectl config set-credentials "$Name-user" `
-    --auth-provider=oidc `
-    --auth-provider-arg=idp-issuer-url=$IssuerUrl `
-    --auth-provider-arg=client-id=$ClientId `
-    --auth-provider-arg=idp-certificate-authority=$CaFile `
-    --auth-provider-arg=refresh-token=$rt | Out-Null
-
-  # context
-  kubectl config set-context $Name --cluster=$Name --user="$Name-user" | Out-Null
-
-  Write-Host "✔ $Name configured. Use: kubectl config use-context $Name"
+# --- Cluster endpoint and OIDC issuer mapping ---
+$Clusters = @{
+  "ikp-cn" = @{
+    ApiServer = "https://api.ikp400lanp.cloud.cn.hsbc:6443"
+    IssuerUrl = "https://oidc.ikp400lanp.cloud.cn.hsbc/k8stoken/"
+  }
+  "ikp-hk" = @{
+    ApiServer = "https://api.ikp400lanp.cloud.hk.hsbc:6443"
+    IssuerUrl = "https://oidc.ikp400lanp.cloud.hk.hsbc/k8stoken/"
+  }
+  "ikp-uk" = @{
+    ApiServer = "https://api.ikp1003anp.cloud.uk.hsbc:6443"
+    IssuerUrl = "https://oidc.ikp1003anp.cloud.uk.hsbc/k8stoken/"
+  }
 }
 
-# Example issuers from your screenshot:
-# CN: https://oidc.ikp400lanp.cloud.cn.hsbc/k8stoken/
-# HK: https://oidc.ikp400lanp.cloud.hk.hsbc/k8stoken/
-# UK: https://oidc.ikp1003anp.cloud.uk.hsbc/k8stoken/
+if (-not $Clusters.ContainsKey($Name)) {
+  Write-Host "❌ Unknown cluster: $Name" -ForegroundColor Red
+  exit 1
+}
 
-# Run one per cluster (fill in the API server you see in the portal):
-# AddOrUpdate-IKP -Name ikp-uk -ApiServer "https://api.ikp1003anp.cloud.uk.hsbc:6443" -IssuerUrl "https://oidc.ikp1003anp.cloud.uk.hsbc/k8stoken/"
-# AddOrUpdate-IKP -Name ikp-hk -ApiServer "https://api.ikp400lanp.cloud.hk.hsbc:6443" -IssuerUrl "https://oidc.ikp400lanp.cloud.hk.hsbc/k8stoken/"
-# AddOrUpdate-IKP -Name ikp-cn -ApiServer "https://api.ikp400lanp.cloud.cn.hsbc:6443" -IssuerUrl "https://oidc.ikp400lanp.cloud.cn.hsbc/k8stoken/"
+$ApiServer = $Clusters[$Name].ApiServer
+$IssuerUrl = $Clusters[$Name].IssuerUrl
+$ClientId  = "kubectl"
+$CaFile    = "$HOME\.kube\openunison-ca.pem"
+
+if (-not (Test-Path $CaFile)) {
+  Write-Host "`n⚠️  Missing CA file: $CaFile" -ForegroundColor Yellow
+  Write-Host "Please create it and paste your OpenUnison CA certificate block there.`n"
+  exit 1
+}
+
+$rt = Read-Host "Paste refresh_token for $Name"
+
+Write-Host "`nConfiguring cluster $Name ..." -ForegroundColor Cyan
+
+# --- Set cluster ---
+kubectl config set-cluster $Name `
+  --server=$ApiServer `
+  --certificate-authority=$CaFile `
+  --embed-certs=false | Out-Null
+
+# --- Set credentials with built-in OIDC provider ---
+kubectl config set-credentials "$Name-user" `
+  --auth-provider=oidc `
+  --auth-provider-arg=idp-issuer-url=$IssuerUrl `
+  --auth-provider-arg=client-id=$ClientId `
+  --auth-provider-arg=idp-certificate-authority=$CaFile `
+  --auth-provider-arg=refresh-token=$rt | Out-Null
+
+# --- Set context ---
+kubectl config set-context $Name `
+  --cluster=$Name `
+  --user="$Name-user" | Out-Null
+
+Write-Host "✅ Added or updated context: $Name"
+Write-Host "Use it via: kubectl config use-context $Name"
