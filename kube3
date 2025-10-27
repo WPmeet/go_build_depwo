@@ -1,17 +1,22 @@
-kubectl config set-credentials ikp-cn-user --exec-command="C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\kubelogin-oidc.exe" --exec-api-version=client.authentication.k8s.io/v1beta1 --exec-arg=get-token --exec-arg=--oidc-issuer-url=https://oidc.ikp400lanp.cloud.cn.hsbc/k8stoken/ --exec-arg=--oidc-client-id=kubernetes --exec-arg=--certificate-authority="$HOME\.kube\openunison-ca.pem" --exec-arg=--token-cache-dir="$HOME\.kube\oidc-cache"
-kubectl config set-credentials ikp-cn-user --exec-command=kubectl --exec-api-version=client.authentication.k8s.io/v1beta1 --exec-arg=oulogin --exec-arg=--host=oidc.ikp400lanp.cloud.cn.hsbc
+kubectl config set-credentials ikp-cn-user --exec-command="C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\kubelogin-oidc.exe" --exec-api-version=client.authentication.k8s.io/v1beta1 --exec-arg=get-token --exec-arg=--oidc-issuer-url=https://oidc.ikp4001anp.cloud.cn.hsbc/k8stoken/ --exec-arg=--oidc-client-id=kubernetes --exec-arg=--certificate-authority="$HOME\.kube\openunison-ca.pem" --exec-arg=--token-cache-dir="$HOME\.kube\oidc-cache"
+kubectl config set-credentials ikp-cn-user --exec-command=kubectl --exec-api-version=client.authentication.k8s.io/v1beta1 --exec-arg=oulogin --exec-arg=--host=oidc.ikp4001anp.cloud.cn.hsbc
 kubectl config set-credentials ikp-cn-user --exec-command="C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\kubectl.exe" --exec-api-version=client.authentication.k8s.io/v1beta1 --exec-arg=oulogin --exec-arg=--host=oidc.ikp4001anp.cloud.cn.hsbc
-kubectl config set-credentials ikp-hk-user --exec-command="C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\kubelogin-oidc.exe" --exec-api-version=client.authentication.k8s.io/v1beta1 --exec-arg=get-token --exec-arg=--oidc-issuer-url=https://oidc.ikp400lanp.cloud.hk.hsbc/k8stoken/ --exec-arg=--oidc-client-id=kubernetes --exec-arg=--certificate-authority="$HOME\.kube\openunison-ca.pem" --exec-arg=--token-cache-dir="$HOME\.kube\oidc-cache"
+kubectl config set-credentials ikp-hk-user --exec-command="C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\kubelogin-oidc.exe" --exec-api-version=client.authentication.k8s.io/v1beta1 --exec-arg=get-token --exec-arg=--oidc-issuer-url=https://oidc.ikp4001anp.cloud.hk.hsbc/k8stoken/ --exec-arg=--oidc-client-id=kubernetes --exec-arg=--certificate-authority="$HOME\.kube\openunison-ca.pem" --exec-arg=--token-cache-dir="$HOME\.kube\oidc-cache"
 
 
 kubectl config set-credentials ikp-uk-user --exec-command="C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\kubelogin-oidc.exe" --exec-api-version=client.authentication.k8s.io/v1beta1 --exec-arg=get-token --exec-arg=--oidc-issuer-url=https://oidc.ikp1003anp.cloud.uk.hsbc/k8stoken/ --exec-arg=--oidc-client-id=kubernetes --exec-arg=--certificate-authority="$HOME\.kube\openunison-ca.pem" --exec-arg=--token-cache-dir="$HOME\.kube\oidc-cache"
 
-"C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\kubelogin-oidc.exe" get-token --oidc-issuer-url=https://oidc.ikp400lanp.cloud.cn.hsbc/k8stoken/ --oidc-client-id=kubernetes --certificate-authority="$HOME\.kube\openunison-ca.pem" -v=4 --logtostderr
+"C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\kubelogin-oidc.exe" get-token --oidc-issuer-url=https://oidc.ikp4001anp.cloud.cn.hsbc/k8stoken/ --oidc-client-id=kubernetes --certificate-authority="$HOME\.kube\openunison-ca.pem" -v=4 --logtostderr
 
 
 # Pick your CA path
 $CA = "C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\openunison-ca.pem"
 
 # Try the two common issuer patterns for IKP
-curl.exe https://oidc.ikp400lanp.cloud.cn.hsbc/auth/realms/k8stoken/.well-known/openid-configuration --cacert "$CA"
-curl.exe https://oidc.ikp400lanp.cloud.cn.hsbc/realms/k8stoken/.well-known/openid-configuration         --cacert "$CA"
+curl.exe https://oidc.ikp4001anp.cloud.cn.hsbc/auth/realms/k8stoken/.well-known/openid-configuration --cacert "$CA"
+curl.exe https://oidc.ikp4001anp.cloud.cn.hsbc/realms/k8stoken/.well-known/openid-configuration         --cacert "$CA"
+
+kubectl config unset users.ikp-cn-user.exec 2>$null
+$rt=Read-Host "Paste refresh_token for ikp-cn"
+kubectl config set-credentials ikp-cn-user --auth-provider=oidc --auth-provider-arg=idp-issuer-url=https://oidc.ikp4001anp.cloud.cn.hsbc/k8stoken/ --auth-provider-arg=client-id=kubernetes --auth-provider-arg=idp-certificate-authority="$CA" --auth-provider-arg=refresh-token=$rt
+kubectl config set-context ikp-cn --cluster=ikp-cn --user=ikp-cn-user
