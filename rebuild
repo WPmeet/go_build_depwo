@@ -1,0 +1,66 @@
+# Rebuild-IKP-Kubeconfig.ps1  — fresh kubeconfig for IKP (CN/HK/UK) using kubelogin-oidc.exe
+
+$Kubelogin = "C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\kubelogin-oidc.exe"  # <- your good binary
+$HomeKube  = "$HOME\.kube"
+$CA        = "$HomeKube\openunison-ca.pem"
+$CacheDir  = "$HomeKube\oidc-cache"
+$ClientId  = "kubectl"
+
+$Clusters = @(
+  @{ name="ikp-cn"; api="https://api.ikp400lanp.cloud.cn.hsbc:6443"; issuer="https://oidc.ikp400lanp.cloud.cn.hsbc/k8stoken/"},
+  @{ name="ikp-hk"; api="https://api.ikp400lanp.cloud.hk.hsbc:6443"; issuer="https://oidc.ikp400lanp.cloud.hk.hsbc/k8stoken/"},
+  @{ name="ikp-uk"; api="https://api.ikp1003anp.cloud.uk.hsbc:6443"; issuer="https://oidc.ikp1003anp.cloud.uk.hsbc/k8stoken/"}
+)
+
+# --- 0) Recreate folders
+New-Item -ItemType Directory -Force -Path $HomeKube | Out-Null
+New-Item -ItemType Directory -Force -Path $CacheDir | Out-Null
+
+# --- 1) Ensure CA file exists at ~/.kube/openunison-ca.pem
+$ExistingCA = "C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\openunison-ca.pem"
+if (Test-Path $ExistingCA) {
+  Copy-Item $ExistingCA $CA -Force
+} elseif (-not (Test-Path $CA)) {
+  Write-Host "Paste the OpenUnison CA certificate into Notepad, save, and close." -ForegroundColor Yellow
+  notepad $CA
+}
+if (-not (Test-Path $CA)) { Write-Host "CA file missing: $CA" -ForegroundColor Red; exit 1 }
+
+# --- 2) Build clusters, users (exec), and contexts
+foreach ($c in $Clusters) {
+  $name   = $c.name
+  $api    = $c.api
+  $issuer = $c.issuer
+  $user   = "$name-user"
+
+  Write-Host "`nConfiguring $name ..." -ForegroundColor Cyan
+
+  # cluster
+  kubectl config set-cluster $name --server=$api --certificate-authority="$CA" --embed-certs=false | Out-Null
+
+  # clean any leftovers
+  kubectl config unset users.$user.exec 2>$null | Out-Null
+  kubectl config unset users.$user.auth-provider 2>$null | Out-Null
+  kubectl config unset users.$user.auth-provider.config.id-token 2>$null | Out-Null
+
+  # user via exec -> kubelogin-oidc.exe (device-code)
+  kubectl config set-credentials $user `
+    --exec-command="$Kubelogin" `
+    --exec-api-version=client.authentication.k8s.io/v1beta1 `
+    --exec-arg=get-token `
+    --exec-arg=--oidc-issuer-url=$issuer `
+    --exec-arg=--oidc-client-id=$ClientId `
+    --exec-arg=--certificate-authority="$CA" `
+    --exec-arg=--token-cache-dir="$CacheDir" `
+    --exec-arg=--login=device-code | Out-Null
+
+  # context
+  kubectl config set-context $name --cluster=$name --user=$user | Out-Null
+  Write-Host "✔ Added context: $name"
+}
+
+Write-Host "`nAll contexts ready. First use will prompt a device-code login." -ForegroundColor Green
+Write-Host "Examples:"
+Write-Host "  kubectl --context ikp-uk get ns"
+Write-Host "  kubectl --context ikp-hk get ns"
+Write-Host "  kubectl --context ikp-cn get ns"
