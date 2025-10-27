@@ -1,5 +1,5 @@
 kubectl config set-credentials ikp-cn-user --exec-command="C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\kubelogin-oidc.exe" --exec-api-version=client.authentication.k8s.io/v1beta1 --exec-arg=get-token --exec-arg=--oidc-issuer-url=https://oidc.ikp400lanp.cloud.cn.hsbc/k8stoken/ --exec-arg=--oidc-client-id=kubernetes --exec-arg=--certificate-authority="$HOME\.kube\openunison-ca.pem" --exec-arg=--token-cache-dir="$HOME\.kube\oidc-cache"
-
+kubectl config set-credentials ikp-cn-user --exec-command=kubectl --exec-api-version=client.authentication.k8s.io/v1beta1 --exec-arg=oulogin --exec-arg=--host=oidc.ikp400lanp.cloud.cn.hsbc
 kubectl config set-credentials ikp-hk-user --exec-command="C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\kubelogin-oidc.exe" --exec-api-version=client.authentication.k8s.io/v1beta1 --exec-arg=get-token --exec-arg=--oidc-issuer-url=https://oidc.ikp400lanp.cloud.hk.hsbc/k8stoken/ --exec-arg=--oidc-client-id=kubernetes --exec-arg=--certificate-authority="$HOME\.kube\openunison-ca.pem" --exec-arg=--token-cache-dir="$HOME\.kube\oidc-cache"
 
 
