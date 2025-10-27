@@ -20,3 +20,15 @@ kubectl config unset users.ikp-cn-user.exec 2>$null
 $rt=Read-Host "Paste refresh_token for ikp-cn"
 kubectl config set-credentials ikp-cn-user --auth-provider=oidc --auth-provider-arg=idp-issuer-url=https://oidc.ikp4001anp.cloud.cn.hsbc/k8stoken/ --auth-provider-arg=client-id=kubernetes --auth-provider-arg=idp-certificate-authority="$CA" --auth-provider-arg=refresh-token=$rt
 kubectl config set-context ikp-cn --cluster=ikp-cn --user=ikp-cn-user
+
+
+kubectl config unset users.ikp-cn-user.exec 2>$null
+$CA="C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\openunison-ca.pem"
+$rt=Read-Host "Paste refresh_token for ikp-cn"
+kubectl config set-credentials ikp-cn-user `
+  --auth-provider=oidc `
+  --auth-provider-arg=idp-issuer-url=https://oidc.ikp400lanp.cloud.cn.hsbc/auth/realms/k8stoken `
+  --auth-provider-arg=client-id=kubernetes `
+  --auth-provider-arg=idp-certificate-authority="$CA" `
+  --auth-provider-arg=refresh-token=$rt
+kubectl config set-context ikp-cn --cluster=ikp-cn --user=ikp-cn-user
