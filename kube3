@@ -6,3 +6,11 @@ kubectl config set-credentials ikp-hk-user --exec-command="C:\swdtools\google-cl
 kubectl config set-credentials ikp-uk-user --exec-command="C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\kubelogin-oidc.exe" --exec-api-version=client.authentication.k8s.io/v1beta1 --exec-arg=get-token --exec-arg=--oidc-issuer-url=https://oidc.ikp1003anp.cloud.uk.hsbc/k8stoken/ --exec-arg=--oidc-client-id=kubernetes --exec-arg=--certificate-authority="$HOME\.kube\openunison-ca.pem" --exec-arg=--token-cache-dir="$HOME\.kube\oidc-cache"
 
 "C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\kubelogin-oidc.exe" get-token --oidc-issuer-url=https://oidc.ikp400lanp.cloud.cn.hsbc/k8stoken/ --oidc-client-id=kubernetes --certificate-authority="$HOME\.kube\openunison-ca.pem" -v=4 --logtostderr
+
+
+# Pick your CA path
+$CA = "C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\openunison-ca.pem"
+
+# Try the two common issuer patterns for IKP
+curl.exe https://oidc.ikp400lanp.cloud.cn.hsbc/auth/realms/k8stoken/.well-known/openid-configuration --cacert "$CA"
+curl.exe https://oidc.ikp400lanp.cloud.cn.hsbc/realms/k8stoken/.well-known/openid-configuration         --cacert "$CA"
