@@ -1,26 +1,44 @@
-$ClusterName = "ikp-dev"
-$ApiServer   = "https://<api.dev.example:6443>"
-$IssuerUrl   = "https://<openunison-host>/auth/realms/<realm>"
-$ClientId    = "kubectl"
-$CaFile      = "$HOME\.kube\openunison-ca.pem"
-$CacheDir    = "$HOME\.kube\oidc-cache"
+param (
+  [string]$ClientId = "kubectl",  # default from OpenUnison portal
+  [string]$CaFile = "$HOME\.kube\openunison-ca.pem",
+  [string]$CacheDir = "$HOME\.kube\oidc-cache"
+)
 
-kubectl config set-cluster $ClusterName `
-  --server=$ApiServer `
-  --certificate-authority=$CaFile `
-  --embed-certs=false
+$Clusters = @(
+  @{ Name = "ikp-cn"; Issuer = "https://oidc.ikp400lanp.cloud.cn.hsbc/k8stoken/"; ApiServer = "https://api.ikp400lanp.cloud.cn.hsbc:6443" },
+  @{ Name = "ikp-hk"; Issuer = "https://oidc.ikp400lanp.cloud.hk.hsbc/k8stoken/"; ApiServer = "https://api.ikp400lanp.cloud.hk.hsbc:6443" },
+  @{ Name = "ikp-uk"; Issuer = "https://oidc.ikp1003anp.cloud.uk.hsbc/k8stoken/"; ApiServer = "https://api.ikp1003anp.cloud.uk.hsbc:6443" }
+)
 
-kubectl config set-credentials "$ClusterName-user" `
-  --exec-command="$PWD\kubelogin.exe" `
-  --exec-api-version=client.authentication.k8s.io/v1beta1 `
-  --exec-arg=get-token `
-  --exec-arg=--oidc-issuer-url=$IssuerUrl `
-  --exec-arg=--oidc-client-id=$ClientId `
-  --exec-arg=--token-cache-dir=$CacheDir `
-  --exec-arg=--certificate-authority=$CaFile
+Write-Host "Setting up IKP clusters with OIDC auto-login..." -ForegroundColor Cyan
 
-kubectl config set-context $ClusterName `
-  --cluster=$ClusterName `
-  --user="$ClusterName-user"
+foreach ($c in $Clusters) {
+  $ClusterName = $c.Name
+  $IssuerUrl   = $c.Issuer
+  $ApiServer   = $c.ApiServer
 
-kubectl config use-context $ClusterName
+  Write-Host "`n>>> Configuring $ClusterName" -ForegroundColor Yellow
+
+  kubectl config set-cluster $ClusterName `
+    --server=$ApiServer `
+    --certificate-authority=$CaFile `
+    --embed-certs=false | Out-Null
+
+  kubectl config set-credentials "$ClusterName-user" `
+    --exec-command="$PWD\kubelogin.exe" `
+    --exec-api-version=client.authentication.k8s.io/v1beta1 `
+    --exec-arg=get-token `
+    --exec-arg=--oidc-issuer-url=$IssuerUrl `
+    --exec-arg=--oidc-client-id=$ClientId `
+    --exec-arg=--token-cache-dir=$CacheDir `
+    --exec-arg=--certificate-authority=$CaFile | Out-Null
+
+  kubectl config set-context $ClusterName `
+    --cluster=$ClusterName `
+    --user="$ClusterName-user" | Out-Null
+
+  Write-Host "✅ Added context $ClusterName"
+}
+
+Write-Host "`nAll IKP clusters added successfully."
+Write-Host "Switch context using: kubectl config use-context ikp-cn | ikp-hk | ikp-uk"
