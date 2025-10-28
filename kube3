@@ -151,3 +151,4 @@ kubectl config set-credentials ikp-cn-user `
   --exec-arg="--login-mode=device-code" `
   --exec-arg="--v=10"
 
+curl.exe "https://oidc.ikp4001anp.cloud.cn.hsbc/auth/idp-cn-aza-4001/.well-known/openid-configuration" -k
