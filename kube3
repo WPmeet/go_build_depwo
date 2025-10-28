@@ -73,8 +73,27 @@ kubectl config set-credentials ikp-cn-user `
   --exec-arg=--certificate-authority=$CA `
   --exec-arg=--login-device-code
 
+users:
+- name: ikp-cn-user
+  user:
+    exec:
+      apiVersion: client.authentication.k8s.io/v1beta1
+      command: C:\\Users\\45468045\\.krew\\store\\oidc-login\\v0.50.0\\kubectl-oidc_login.exe
+      args:
+      - get-token
+      - --oidc-issuer-url=https://oidc.ikp4001anp.cloud.cn.hsbc/k8stoken/
+      - --oidc-client-id=kubectl
+      - --certificate-authority=C:\\swdtools\\google-cloud-sdk-356.0.0-windows\\bin\\openunison-ca.pem
+      - --login=browser
+    interactiveMode: IfAvailable
+    provideClusterInfo: false
 
 
+& "C:\Users\45468045\.krew\store\oidc-login\v0.50.0\kubectl-oidc_login.exe" get-token `
+    --oidc-issuer-url=https://oidc.ikp4001anp.cloud.cn.hsbc/k8stoken/ `
+    --oidc-client-id=kubectl `
+    --certificate-authority="C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\openunison-ca.pem" `
+    --login=browser --v=10
 
 
 
