@@ -126,3 +126,8 @@ kubectl config set-credentials ikp-cn-user `
 
 
 
+kubectl oidc-login get-token `
+  --oidc-issuer-url=https://oidc.ikp4001anp.cloud.cn.hsbc/k8stoken/ `
+  --oidc-client-id=kubectl `
+  --certificate-authority="C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\openunison-ca.pem" `
+  --login=browser --v=10
