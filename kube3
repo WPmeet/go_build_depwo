@@ -131,3 +131,23 @@ kubectl oidc-login get-token `
   --oidc-client-id=kubectl `
   --certificate-authority="C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\openunison-ca.pem" `
   --login=browser --v=10
+
+
+# Must return JSON. If you see HTML, the host/path is wrong.
+curl.exe "https://oidc.ikp4001anp.cloud.cn.hsbc/auth/realms/k8stoken/.well-known/openid-configuration" -k
+
+
+$CA      = "C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\openunison-ca.pem"
+$OIDC    = "https://oidc.ikp4001anp.cloud.cn.hsbc/auth/realms/k8stoken"
+$PLUGIN  = "$HOME\.krew\store\oidc-login\v0.50.0\kubectl-oidc_login.exe"
+
+kubectl config set-credentials ikp-cn-user `
+  --exec-command="$PLUGIN" `
+  --exec-api-version=client.authentication.k8s.io/v1beta1 `
+  --exec-arg=get-token `
+  --exec-arg="--oidc-issuer-url=$OIDC" `
+  --exec-arg="--oidc-client-id=kubernetes" `
+  --exec-arg="--certificate-authority=$CA" `
+  --exec-arg="--login-mode=device-code" `
+  --exec-arg="--v=10"
+
