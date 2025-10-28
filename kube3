@@ -12,9 +12,10 @@ kubectl config set-credentials ikp-uk-user --exec-command="C:\swdtools\google-cl
 # Pick your CA path
 $CA = "C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\openunison-ca.pem"
 
-# Try the two common issuer patterns for IKP
-curl.exe https://oidc.ikp4001anp.cloud.cn.hsbc/auth/realms/k8stoken/.well-known/openid-configuration --cacert "$CA"
-curl.exe https://oidc.ikp4001anp.cloud.cn.hsbc/realms/k8stoken/.well-known/openid-configuration         --cacert "$CA"
+curl https://oidc.ikp4001anp.cloud.cn.hsbc/.well-known/openid-configuration -k
+curl https://oidc.ikp4001anp.cloud.cn.hsbc/openid/.well-known/openid-configuration -k
+curl https://oidc.ikp4001anp.cloud.cn.hsbc/auth/idp/.well-known/openid-configuration -k
+
 
 kubectl config unset users.ikp-cn-user.exec 2>$null
 $rt=Read-Host "Paste refresh_token for ikp-cn"
