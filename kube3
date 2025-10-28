@@ -45,3 +45,16 @@ users:
       env: []
       interactiveMode: IfAvailable
       provideClusterInfo: false
+
+
+$CA="C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\openunison-ca.pem"
+$ISS="https://oidc.ikp4001anp.cloud.cn.hsbc/k8stoken/"
+$RT = Read-Host "Paste refresh_token from the IKP portal"
+
+kubectl config set-credentials ikp-cn-user `
+  --auth-provider=oidc `
+  --auth-provider-arg=idp-issuer-url=$ISS `
+  --auth-provider-arg=client-id=kubectl `
+  --auth-provider-arg=idp-certificate-authority=$CA `
+  --auth-provider-arg=refresh-token=$RT
+
