@@ -1,12 +1,14 @@
-kubectl config set-credentials ikp-cn-user --exec-command="C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\kubelogin-oidc.exe" --exec-api-version=client.authentication.k8s.io/v1beta1 --exec-arg=get-token --exec-arg=--oidc-issuer-url=https://oidc.ikp4001anp.cloud.cn.hsbc/k8stoken/ --exec-arg=--oidc-client-id=kubernetes --exec-arg=--certificate-authority="$HOME\.kube\openunison-ca.pem" --exec-arg=--token-cache-dir="$HOME\.kube\oidc-cache"
-kubectl config set-credentials ikp-cn-user --exec-command=kubectl --exec-api-version=client.authentication.k8s.io/v1beta1 --exec-arg=oulogin --exec-arg=--host=oidc.ikp4001anp.cloud.cn.hsbc
-kubectl config set-credentials ikp-cn-user --exec-command="C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\kubectl.exe" --exec-api-version=client.authentication.k8s.io/v1beta1 --exec-arg=oulogin --exec-arg=--host=oidc.ikp4001anp.cloud.cn.hsbc
-kubectl config set-credentials ikp-hk-user --exec-command="C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\kubelogin-oidc.exe" --exec-api-version=client.authentication.k8s.io/v1beta1 --exec-arg=get-token --exec-arg=--oidc-issuer-url=https://oidc.ikp4001anp.cloud.hk.hsbc/k8stoken/ --exec-arg=--oidc-client-id=kubernetes --exec-arg=--certificate-authority="$HOME\.kube\openunison-ca.pem" --exec-arg=--token-cache-dir="$HOME\.kube\oidc-cache"
+# 1) Point the user at kubectl-oidc_login (adjust paths if needed)
+kubectl config set-credentials ikp-cn-user `
+  --exec-command="$HOME\.krew\bin\kubectl-oidc_login.exe" `
+  --exec-api-version=client.authentication.k8s.io/v1beta1 `
+  --exec-arg=get-token `
+  --exec-arg=--oidc-issuer-url=https://oidc.ikp4001anp.cloud.cn.hsbc/auth/realms/k8stoken/ `
+  --exec-arg=--oidc-client-id=kubernetes `
+  --exec-arg=--certificate-authority=C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\openunison-ca.pem
 
-
-kubectl config set-credentials ikp-uk-user --exec-command="C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\kubelogin-oidc.exe" --exec-api-version=client.authentication.k8s.io/v1beta1 --exec-arg=get-token --exec-arg=--oidc-issuer-url=https://oidc.ikp1003anp.cloud.uk.hsbc/k8stoken/ --exec-arg=--oidc-client-id=kubernetes --exec-arg=--certificate-authority="$HOME\.kube\openunison-ca.pem" --exec-arg=--token-cache-dir="$HOME\.kube\oidc-cache"
-
-"C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\kubelogin-oidc.exe" get-token --oidc-issuer-url=https://oidc.ikp4001anp.cloud.cn.hsbc/k8stoken/ --oidc-client-id=kubernetes --certificate-authority="$HOME\.kube\openunison-ca.pem" -v=4 --logtostderr
+# 2) Use the context and it should pop the same login (or reuse the session)
+kubectl get ns --context ikp-cn
 
 
 # Pick your CA path
