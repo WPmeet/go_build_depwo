@@ -112,5 +112,17 @@ curl.exe --cacert "$CA" "https://oidc.ikp4001anp.cloud.cn.hsbc/k8stoken/.well-kn
 
 --skip-open-browser --listen-address=127.0.0.1:18000
 
+# (adjust CA path if yours is different)
+$CA = "C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\openunison-ca.pem"
+
+kubectl config set-credentials ikp-cn-user `
+  --exec-command="C:\Users\45468045\.krew\store\oidc-login\v0.50.0\kubectl-oidc_login.exe" `
+  --exec-api-version=client.authentication.k8s.io/v1beta1 `
+  --exec-arg=get-token `
+  --exec-arg="--oidc-issuer-url=https://oidc.ikp4001anp.cloud.cn.hsbc/k8stoken/" `
+  --exec-arg="--oidc-client-id=kubectl" `
+  --exec-arg="--certificate-authority=$CA" `
+  --exec-arg="--login=browser"
+
 
 
