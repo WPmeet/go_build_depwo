@@ -95,5 +95,22 @@ users:
     --certificate-authority="C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\openunison-ca.pem" `
     --login=browser --v=10
 
+& "C:\Users\45468045\.krew\store\oidc-login\v0.50.0\kubectl-oidc_login.exe" get-token `
+  --oidc-issuer-url="https://oidc.ikp4001anp.cloud.cn.hsbc/k8stoken/" `
+  --oidc-client-id=kubectl `
+  --certificate-authority="C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\openunison-ca.pem" `
+  -v=10
+
+$CA="C:\swdtools\google-cloud-sdk-356.0.0-windows\bin\openunison-ca.pem"
+curl.exe --cacert "$CA" "https://oidc.ikp4001anp.cloud.cn.hsbc/k8stoken/.well-known/openid-configuration"
+
+& "C:\Users\45468045\.krew\store\oidc-login\v0.50.0\kubectl-oidc_login.exe" get-token `
+  --oidc-issuer-url="https://oidc.ikp4001anp.cloud.cn.hsbc/k8stoken" `
+  --oidc-client-id=kubectl `
+  --certificate-authority="$CA" `
+  -v=10
+
+--skip-open-browser --listen-address=127.0.0.1:18000
+
 
 
