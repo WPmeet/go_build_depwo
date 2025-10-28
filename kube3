@@ -32,3 +32,20 @@ kubectl config set-credentials ikp-cn-user `
   --auth-provider-arg=idp-certificate-authority="$CA" `
   --auth-provider-arg=refresh-token=$rt
 kubectl config set-context ikp-cn --cluster=ikp-cn --user=ikp-cn-user
+
+
+# Create the bin directory if missing
+New-Item -ItemType Directory -Force "$HOME\.krew\bin" | Out-Null
+
+# Add it permanently to PATH
+[Environment]::SetEnvironmentVariable(
+  "Path",
+  $env:Path + ";$HOME\.krew\bin",
+  "User"
+)
+
+# Add it for the current session too
+$env:Path += ";$HOME\.krew\bin"
+
+# Confirm it’s visible
+echo $env:Path
