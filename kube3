@@ -16,6 +16,9 @@ curl https://oidc.ikp4001anp.cloud.cn.hsbc/.well-known/openid-configuration -k
 curl https://oidc.ikp4001anp.cloud.cn.hsbc/openid/.well-known/openid-configuration -k
 curl https://oidc.ikp4001anp.cloud.cn.hsbc/auth/idp/.well-known/openid-configuration -k
 
+Invoke-WebRequest -Uri "https://oidc.ikp4001anp.cloud.cn.hsbc/.well-known/openid-configuration" -UseBasicParsing
+Invoke-WebRequest -Uri "https://oidc.ikp4001anp.cloud.cn.hsbc/openid/.well-known/openid-configuration" -UseBasicParsing
+Invoke-WebRequest -Uri "https://oidc.ikp4001anp.cloud.cn.hsbc/auth/idp/.well-known/openid-configuration" -UseBasicParsing
 
 kubectl config unset users.ikp-cn-user.exec 2>$null
 $rt=Read-Host "Paste refresh_token for ikp-cn"
