@@ -1,0 +1,59 @@
+count by (__name__, listener, network_processor) ({job="kafka-broker", __name__=~"kafka_server_socketservermetrics_.*"})
+count by (__name__, request, version)           ({job="kafka-broker", __name__=~"kafka_network_requestmetrics_.*"})
+count by (__name__, user, client_id)            ({job="kafka-broker", __name__=~"kafka_server_(Produce|Fetch|Request)_.*"})
+
+count without (instance, job, topic, partition) ({job="kafka-broker", __name__=~"kafka_server_brokertopicmetrics_.*"})
+count without (instance, job, topic, partition) ({job="kafka-broker", __name__=~"kafka_network_requestmetrics_.*"})
+count without (instance, job, topic, partition) ({job="kafka-broker", __name__=~"kafka_server_socketservermetrics_.*"})
+count without (instance, job, topic, partition) ({job="kafka-broker", __name__=~"kafka_server_tenant_metrics_.*"})
+
+count by (request, version) (
+  {job="kafka-broker", __name__=~"kafka_network_requestmetrics_.*", request!="", version!=""}
+)
+count by (listener) (
+  {job="kafka-broker", __name__=~"kafka_server_socketservermetrics_.*", listener!=""}
+)
+
+
+sum by (family) (
+  label_replace(
+    count without (instance, job, pod, namespace, topic, partition) ({job="kafka-broker", __name__=~"kafka_server_brokertopicmetrics_.*"}),
+    "family","BrokerTopicMetrics","",""
+  )
+or label_replace(
+    count without (instance, job, pod, namespace, topic, partition) ({job="kafka-broker", __name__=~"kafka_network_requestmetrics_.*"}),
+    "family","RequestMetrics","",""
+  )
+or label_replace(
+    count without (instance, job, pod, namespace, topic, partition) ({job="kafka-broker", __name__=~"kafka_server_replicamanager_.*"}),
+    "family","ReplicaManager","",""
+  )
+or label_replace(
+    count without (instance, job, pod, namespace, topic, partition) ({job="kafka-broker", __name__=~"kafka_controller_.*"}),
+    "family","Controller","",""
+  )
+or label_replace(
+    count without (instance, job, pod, namespace, topic, partition) ({job="kafka-broker", __name__=~"kafka_log_.*"}),
+    "family","Log","",""
+  )
+or label_replace(
+    count without (instance, job, pod, namespace, topic, partition) ({job="kafka-broker", __name__=~"kafka_server_socketservermetrics_.*"}),
+    "family","SocketServer","",""
+  )
+or label_replace(
+    count without (instance, job, pod, namespace, topic, partition) ({job="kafka-broker", __name__=~"kafka_coordinator_.*"}),
+    "family","Coordinator","",""
+  )
+or label_replace(
+    count without (instance, job, pod, namespace, topic, partition) ({job="kafka-broker", __name__=~"jvm_.*"}),
+    "family","JVM","",""
+  )
+or label_replace(
+    count without (instance, job, pod, namespace, topic, partition) ({job="kafka-broker", __name__=~"confluent_.*"}),
+    "family","ConfluentExtras","",""
+  )
+or label_replace(
+    count without (instance, job, pod, namespace, topic, partition) ({job="kafka-broker", __name__=~"kafka_server_tenant_metrics_.*"}),
+    "family","TenantMetrics","",""
+  )
+)
