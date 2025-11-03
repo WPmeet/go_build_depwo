@@ -1,0 +1,18 @@
+    # 🔻 Additional blacklist for heavy / low-value metrics
+    - "kafka.server:type=tenant-metrics,*"                               # kafka_server_tenant_metrics_*
+    - "kafka.server:type=FetcherLagMetrics,name=ConsumerLag,*"           # kafka_server_fetcherlagmetrics_consumerlag
+    - "kafka.cluster:type=Partition,name=AtMinIsrMirror,*"
+    - "kafka.cluster:type=Partition,name=BlockedOnMirrorSource,*"
+    - "kafka.cluster:type=Partition,name=CaughtUpReplicasCount,*"
+    - "kafka.cluster:type=Partition,name=DeferredUnderMinIsr,*"
+    - "kafka.cluster:type=Partition,name=IsNotCaughtUp,*"
+    - "kafka.cluster:type=Partition,name=MirrorReplicasCount,*"
+    - "kafka.cluster:type=Partition,name=ObserverReplicasCount,*"
+    - "kafka.cluster:type=Partition,name=ReplicasCount,*"
+    - "kafka.cluster:type=Partition,name=UnderMinIsrMirror,*"
+    - "kafka.cluster:type=Partition,name=UnderReplicatedMirror,*"
+    - "kafka.log:type=Log,name=NumLogSegments,*"                         # kafka_log_numlogsegments
+    - "kafka.log:type=Log,name=LastFlushedOffset,*"
+    - "kafka.log:type=Log,name=Flushes,*"
+    - "kafka.log:type=Log,name=LogFlushTimeMs,*"
+    - "kafka.log:type=Log,name=TierSize,*"                               # Tiered storage only
