@@ -1,18 +1,15 @@
-spec:
-  logging:
-    type: inline
-    log4jProperties:
-      "log4j.rootLogger": "INFO, CONSOLE"
-      "log4j.appender.CONSOLE": "org.apache.log4j.ConsoleAppender"
-      "log4j.appender.CONSOLE.Target": "System.out"
-      "log4j.appender.CONSOLE.layout": "org.apache.log4j.PatternLayout"
-      "log4j.appender.CONSOLE.Threshold": "INFO"
-    log4jLoggers:
-      "org.apache.zookeeper": "DEBUG"
-      "org.apache.zookeeper.server.quorum": "DEBUG"
-      "org.apache.zookeeper.server.NettyServerCnxnFactory": "DEBUG"
-spec:
-  podTemplate:
-    env:
-    - name: KAFKA_OPTS
-      value: "-Djavax.net.debug=ssl,handshake"
+  configOverrides:
+    jvm:
+      - -Djavax.net.debug=ssl,handshake
+
+    log4j:
+      - log4j.rootLogger=INFO, CONSOLE
+      - log4j.appender.CONSOLE=org.apache.log4j.ConsoleAppender
+      - log4j.appender.CONSOLE.Target=System.out
+      - log4j.appender.CONSOLE.layout=org.apache.log4j.PatternLayout
+      - log4j.appender.CONSOLE.Threshold=INFO
+
+      # Targeted DEBUG
+      - log4j.logger.org.apache.zookeeper=DEBUG
+      - log4j.logger.org.apache.zookeeper.server.quorum=DEBUG
+      - log4j.logger.org.apache.zookeeper.server.NettyServerCnxnFactory=DEBUG
