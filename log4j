@@ -13,3 +13,15 @@
       - log4j.logger.org.apache.zookeeper=DEBUG
       - log4j.logger.org.apache.zookeeper.server.quorum=DEBUG
       - log4j.logger.org.apache.zookeeper.server.NettyServerCnxnFactory=DEBUG
+  blacklist:
+    # Per-partition cluster metrics (very high cardinality) — DROP
+    - "kafka.cluster:type=Partition,name=InSyncReplicasCount,*"
+    - "kafka.cluster:type=Partition,name=LastStableOffsetLag,*"
+    - "kafka.cluster:type=Partition,name=ObserversInSyncCount,*"
+    - "kafka.cluster:type=Partition,name=ReplicasCount,*"
+    - "kafka.cluster:type=Partition,name=UnderMinIsr,*"
+    - "kafka.cluster:type=Partition,name=UnderReplicated,*"
+
+    # Per-partition log metrics — DROP
+    - "kafka.log:type=Log,name=NumLogSegments,*"
+    - "kafka.log:type=Log,name=Size,*"
