@@ -1,18 +1,115 @@
-    # 🔻 Additional blacklist for heavy / low-value metrics
-    - "kafka.server:type=tenant-metrics,*"                               # kafka_server_tenant_metrics_*
-    - "kafka.server:type=FetcherLagMetrics,name=ConsumerLag,*"           # kafka_server_fetcherlagmetrics_consumerlag
-    - "kafka.cluster:type=Partition,name=AtMinIsrMirror,*"
-    - "kafka.cluster:type=Partition,name=BlockedOnMirrorSource,*"
-    - "kafka.cluster:type=Partition,name=CaughtUpReplicasCount,*"
-    - "kafka.cluster:type=Partition,name=DeferredUnderMinIsr,*"
-    - "kafka.cluster:type=Partition,name=IsNotCaughtUp,*"
-    - "kafka.cluster:type=Partition,name=MirrorReplicasCount,*"
-    - "kafka.cluster:type=Partition,name=ObserverReplicasCount,*"
-    - "kafka.cluster:type=Partition,name=ReplicasCount,*"
-    - "kafka.cluster:type=Partition,name=UnderMinIsrMirror,*"
-    - "kafka.cluster:type=Partition,name=UnderReplicatedMirror,*"
-    - "kafka.log:type=Log,name=NumLogSegments,*"                         # kafka_log_numlogsegments
-    - "kafka.log:type=Log,name=LastFlushedOffset,*"
-    - "kafka.log:type=Log,name=Flushes,*"
-    - "kafka.log:type=Log,name=LogFlushTimeMs,*"
-    - "kafka.log:type=Log,name=TierSize,*"                               # Tiered storage only
+blacklist:
+  # ---- Partition-scoped floods (any topic+partition beans) ----
+  - "kafka.cluster:type=*,name=*,topic=*,partition=*"
+  - "kafka.log:type=*,name=*,topic=*,partition=*"
+  - "kafka.controller:type=*,name=*,topic=*,partition=*"
+  - "kafka.server:type=*,name=*,topic=*,partition=*"
+
+  # ---- Socket internals: drop per-thread attributes (we keep only 'connections' via a specific rule) ----
+  - "kafka.server:type=socket-server-metrics,listener=*,networkProcessor=*"
+
+  # ---- Not used in your setup (remove entire families) ----
+  - "kafka.server:type=tenant-metrics,*"             # Confluent multi-tenant accounting
+  - "kafka.server:type=confluent-audit-metrics,*"    # Confluent Audit Log
+  - "kafka.tier.tasks.*"                              # Tiered Storage
+  - "kafka.tier.tasks.archive:*"                      # Tiered Storage archive
+  - "confluent.metadata.*"                            # MDS internals
+  - "confluent.license.*"                             # License MBeans
+
+  # ---- KRaft/Raft (you’re on ZooKeeper) ----
+  - "kafka.server:type=raft-metrics,*"
+  - "kafka.controller:type=kraft-controller-metrics,*"
+  - "kafka.controller:type=kafka-server-metrics,*"
+  - "kafka.server:type=controller-channel-metrics,*"
+
+  # ---- Optional: per-user/client quota metrics (uncomment if you don't need them) ----
+  # - "kafka.server:type=Produce,*"
+  # - "kafka.server:type=Fetch,*"
+  # - "kafka.server:type=Request,*"
+
+  # ---- Keep Cluster Linking (do NOT blacklist) ----
+  # (intentionally no 'cluster-link-*' blocks here)
+rules:
+  # ---- Core throughput (Counters only; do rate() in PromQL) ----
+  - pattern: 'kafka.server<type=BrokerTopicMetrics, name=(MessagesInPerSec|BytesInPerSec|BytesOutPerSec|TotalProduceRequestsPerSec|TotalFetchRequestsPerSec), topic=(.+)><>Count'
+    name: kafka_server_brokertopicmetrics_$1_count
+    type: COUNTER
+    labels:
+      topic: "$2"
+
+  - pattern: 'kafka.server<type=BrokerTopicMetrics, name=(MessagesInPerSec|BytesInPerSec|BytesOutPerSec)><>Count'
+    name: kafka_server_brokertopicmetrics_$1_count_alltopics
+    type: COUNTER
+
+  # ---- Request mix (no version; Count only) ----
+  - pattern: 'kafka.network<type=RequestMetrics, name=RequestsPerSec, request=(.+)><>Count'
+    name: kafka_network_requestmetrics_requestspersec_count
+    type: COUNTER
+    labels:
+      request: "$1"
+
+  # ---- Replica / Controller health (small, stable sets) ----
+  - pattern: 'kafka.server<type=ReplicaManager, name=(UnderReplicatedPartitions|IsrShrinksPerSec|IsrExpandsPerSec)><>Value'
+    name: kafka_server_replicamanager_$1
+    type: GAUGE
+
+  - pattern: 'kafka.controller<type=KafkaController, name=(ActiveControllerCount|OfflinePartitionsCount)><>Value'
+    name: kafka_controller_kafkacontroller_$1
+    type: GAUGE
+
+  # ---- Storage totals (no per-partition) ----
+  - pattern: 'kafka.log<type=Log, name=(Size|NumLogSegments), logDirectory=(.+)><>Value'
+    name: kafka_log_$1
+    type: GAUGE
+    labels:
+      logDirectory: "$2"
+
+  # ---- Socket: keep only connections; no wildcard; no cache ----
+  - pattern: 'kafka.server<type=socket-server-metrics, clientSoftwareName=(.+), clientSoftwareVersion=(.+), listener=(.+), networkProcessor=(.+)><>connections'
+    name: kafka_server_socketservermetrics_connections
+    type: GAUGE
+    labels:
+      listener: "$3"
+      network_processor: "$4"
+    # (intentionally no cache field)
+
+  # ---- Group/Txn coordinators (tiny sets; no cache) ----
+  - pattern: 'kafka.coordinator.(\w+)<type=(.+), name=(.+)><>(Count|Value)'
+    name: kafka_coordinator_$1_$2_$3
+    # no cache
+
+  # ---- Request handler idle percent: use Value (not OneMinuteRate) ----
+  - pattern: 'kafka.server<type=KafkaRequestHandlerPool, name=RequestHandlerAvgIdlePercent><>Value'
+    name: kafka_server_kafkarequesthandlerpool_requesthandleravgidlepercent
+    type: GAUGE
+
+  # =======================
+  # Cluster Linking (lean)
+  # =======================
+
+  # Manager status (very small; no cache)
+  - pattern: 'kafka.server.link<type=ClusterLinkFetcherManager, name=(.+), (.+)=(.+), (.+)=(.+)><>Value'
+    name: kafka_server_link_clusterlinkfetchermanager_$1
+    labels:
+      "$2": "$3"
+      "$4": "$5"
+    # no cache
+
+  # Link-level metrics: link-name + name (avoid per-broker/fetcher fan-out)
+  - pattern: 'kafka.server<type=cluster-link-metrics, link-name=(.+), name=(.+)><>(.+):(.+)'
+    name: kafka_server_cluster_link_metrics_$2
+    value: $4
+    type: GAUGE
+    labels:
+      link_name: "$1"
+    # no cache
+
+  # Fetcher metrics (keep, but no cache; adjust if you want fewer labels)
+  - pattern: 'kafka.server<type=cluster-link-fetcher-metrics, (.+)=(.+), (.+)=(.+), (.+)=(.+)><>(.+):'
+    name: kafka_server_cluster_link_fetcher_metrics_$7
+    type: GAUGE
+    labels:
+      "$1": "$2"
+      "$3": "$4"
+      "$5": "$6"
+    # no cache
