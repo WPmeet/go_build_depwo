@@ -1,0 +1,48 @@
+topics
+
+cat >/tmp/internal-topics.txt << 'EOF'
+__consumer_offsets
+__transaction_state
+_confluent_balancer_partition_metrics
+_confluent_balancer_brokers
+_confluent_balancer_epoch
+_confluent_balancer_task
+EOF
+
+
+kafka-topics.sh \
+  --bootstrap-server <BROKER:PORT> \
+  --command-config /tmp/c \
+  --list \
+| grep -v '^__' \
+| grep -v '^_confluent' \
+| grep -v '^connect-' \
+> /tmp/user-topics.txt
+
+
+while read -r t; do
+  echo "Updating placement constraints for topic: $t"
+  kafka-configs.sh \
+    --bootstrap-server <BROKER:PORT> \
+    --command-config /tmp/c \
+    --alter \
+    --entity-type topics \
+    --entity-name "$t" \
+    --replica-placement /tmp/new-placement.json
+done < /tmp/user-topics.txt
+for t in $(cat /tmp/internal-topics.txt); do
+  echo "Checking $t"
+  kafka-topics.sh --bootstrap-server <BROKER:PORT> --command-config /tmp/c --describe --topic "$t" | head -n 1
+done
+
+
+while read -r t; do
+  echo "Updating internal topic placement: $t"
+  kafka-configs.sh \
+    --bootstrap-server <BROKER:PORT> \
+    --command-config /tmp/c \
+    --alter \
+    --entity-type topics \
+    --entity-name "$t" \
+    --replica-placement /tmp/internal-placement.json
+done < /tmp/internal-topics.txt
