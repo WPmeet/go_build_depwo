@@ -46,3 +46,11 @@ while read -r t; do
     --entity-name "$t" \
     --replica-placement /tmp/internal-placement.json
 done < /tmp/internal-topics.txt
+{
+  "topics": [
+    {"topic": "_exporter_states"},
+    {"topic": "_exporter_configs"},
+    {"topic": "schemaMRC"}
+  ],
+  "version": 1
+}
