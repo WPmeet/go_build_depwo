@@ -54,3 +54,11 @@ done < /tmp/internal-topics.txt
   ],
   "version": 1
 }
+
+
+while read -r t; do
+  echo "===== $t =====" >> all-topic-configs.txt
+  kafka-configs.sh --bootstrap-server <broker> \
+    --describe --topic "$t" >> all-topic-configs.txt
+  echo "" >> all-topic-configs.txt
+done < topics.txt
