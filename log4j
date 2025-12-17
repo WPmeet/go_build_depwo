@@ -25,3 +25,10 @@
     # Per-partition log metrics — DROP
     - "kafka.log:type=Log,name=NumLogSegments,*"
     - "kafka.log:type=Log,name=Size,*"
+
+rules:
+  - pattern: kafka.producer<type=producer-topic-metrics, client-id=(.+), topic=(.+)><>record-send-total
+    name: kafka_producer_topic_record_send_total
+    labels:
+      client_id: "$1"
+      topic: "$2"
