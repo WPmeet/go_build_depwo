@@ -1,44 +1,161 @@
-param (
-  [string]$ClientId = "kubectl",  # default from OpenUnison portal
-  [string]$CaFile = "$HOME\.kube\openunison-ca.pem",
-  [string]$CacheDir = "$HOME\.kube\oidc-cache"
-)
+Create Client Keystore (JKS)
+Original (runmqckm)
+runmqckm -keydb -create -db filename.jks -pw <pwd> -type jks
+✅ keytool Equivalent
+keytool -genkeypair \
+  -alias ibmmq-client \
+  -keyalg RSA \
+  -keysize 2048 \
+  -validity 730 \
+  -keystore filename.jks \
+  -storetype JKS \
+  -storepass <pwd> \
+  -keypass <pwd> \
+  -dname "CN=APPA_DEV,O=AP,OU=AUTHENC,L=MQCDEV,C=HK"
 
-$Clusters = @(
-  @{ Name = "ikp-cn"; Issuer = "https://oidc.ikp400lanp.cloud.cn.hsbc/k8stoken/"; ApiServer = "https://api.ikp400lanp.cloud.cn.hsbc:6443" },
-  @{ Name = "ikp-hk"; Issuer = "https://oidc.ikp400lanp.cloud.hk.hsbc/k8stoken/"; ApiServer = "https://api.ikp400lanp.cloud.hk.hsbc:6443" },
-  @{ Name = "ikp-uk"; Issuer = "https://oidc.ikp1003anp.cloud.uk.hsbc/k8stoken/"; ApiServer = "https://api.ikp1003anp.cloud.uk.hsbc:6443" }
-)
+Replace DN based on your env:
 
-Write-Host "Setting up IKP clusters with OIDC auto-login..." -ForegroundColor Cyan
+Non-Prod Example:
+CN=<AppCode>_DEV
+L=MQCDEV
+OU=AUTHENC
+O=AP/EU/NA
+C=HK/GB/US/FR
+Prod Example:
+CN=<AppCode>_PROD
+L=MQCPROD
+OU=AUTHENC
+O=AP/EU/NA
+C=HK/GB/US/FR
+🔁 2. Create CSR (Certificate Request)
+Original
+runmqckm -certreq -create ...
+✅ keytool Equivalent
+keytool -certreq \
+  -alias ibmmq-client \
+  -file client.req \
+  -keystore filename.jks \
+  -storepass <pwd>
 
-foreach ($c in $Clusters) {
-  $ClusterName = $c.Name
-  $IssuerUrl   = $c.Issuer
-  $ApiServer   = $c.ApiServer
+That client.req is what you send to SNOW.
 
-  Write-Host "`n>>> Configuring $ClusterName" -ForegroundColor Yellow
+🔁 3. Import Root & Intermediate Certificates
 
-  kubectl config set-cluster $ClusterName `
-    --server=$ApiServer `
-    --certificate-authority=$CaFile `
-    --embed-certs=false | Out-Null
+Original commands were importing:
 
-  kubectl config set-credentials "$ClusterName-user" `
-    --exec-command="$PWD\kubelogin.exe" `
-    --exec-api-version=client.authentication.k8s.io/v1beta1 `
-    --exec-arg=get-token `
-    --exec-arg=--oidc-issuer-url=$IssuerUrl `
-    --exec-arg=--oidc-client-id=$ClientId `
-    --exec-arg=--token-cache-dir=$CacheDir `
-    --exec-arg=--certificate-authority=$CaFile | Out-Null
+HSBC Issuing CA02-G2
 
-  kubectl config set-context $ClusterName `
-    --cluster=$ClusterName `
-    --user="$ClusterName-user" | Out-Null
+HSBC ORCA G2
 
-  Write-Host "✅ Added context $ClusterName"
-}
+⚠️ IMPORTANT: With keytool you MUST import CA first, before importing signed cert.
 
-Write-Host "`nAll IKP clusters added successfully."
-Write-Host "Switch context using: kubectl config use-context ikp-cn | ikp-hk | ikp-uk"
+Import Root CA
+keytool -importcert \
+  -alias root-ca \
+  -file HSBC_ORCA_G2.cer \
+  -keystore filename.jks \
+  -storepass <pwd> \
+  -noprompt
+Import Intermediate CA
+keytool -importcert \
+  -alias issuing-ca \
+  -file HSBC_Issuing_CA02_G2.cer \
+  -keystore filename.jks \
+  -storepass <pwd> \
+  -noprompt
+🔁 4. Import Signed Certificate (after SNOW returns it)
+
+Original:
+
+runmqckm -cert -receive ...
+✅ keytool Equivalent
+
+If certificate is Base64 (.cer ASCII):
+
+keytool -importcert \
+  -alias ibmmq-client \
+  -file signed_cert.cer \
+  -keystore filename.jks \
+  -storepass <pwd>
+
+⚠️ Alias must match the original keypair alias (ibmmq-client).
+
+This attaches the signed cert to your private key.
+
+🔁 5. Verify Keystore
+List content
+keytool -list -v \
+  -keystore filename.jks \
+  -storepass <pwd>
+
+You should see:
+
+PrivateKeyEntry → ibmmq-client
+
+Certificate chain length: 3
+
+Client
+
+Intermediate
+
+Root
+
+If chain length is 1 → you did something wrong.
+
+🔁 6. (Optional) Create Separate Truststore for MQ
+
+Kafka Connect usually uses:
+
+keystore → client cert
+
+truststore → server CA
+
+Create truststore:
+
+keytool -importcert \
+  -alias mq-root \
+  -file HSBC_ORCA_G2.cer \
+  -keystore mq-truststore.jks \
+  -storetype JKS \
+  -storepass <pwd> \
+  -noprompt
+
+If MQ server cert signed by intermediate → also import intermediate.
+
+🔥 What Kafka MQ Sink Connector Needs
+
+In connector config:
+
+ssl.keystore.location=/path/filename.jks
+ssl.keystore.password=<pwd>
+ssl.key.password=<pwd>
+
+ssl.truststore.location=/path/mq-truststore.jks
+ssl.truststore.password=<pwd>
+⚠️ Critical Differences vs runmqckm
+runmqckm	keytool
+Trust enable flag	Not needed
+DB vs JKS distinction	Must specify -storetype JKS
+Label	Alias
+Auto chain handling	Must import CA first
+💣 Common Mistakes I See in MQ + Kafka
+
+Importing signed cert before CA
+
+Using different alias when importing signed cert
+
+Forgetting intermediate CA
+
+Using PKCS12 instead of JKS
+
+Chain length = 1 → handshake fails
+
+DN mismatch vs what MQ expects
+
+If you want, next I can:
+
+Validate your exact DN string before you generate
+
+Or give you a hardened production-ready script version
+
+Or explain how to convert to PKCS12 if needed later
