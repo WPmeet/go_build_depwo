@@ -159,3 +159,231 @@ Validate your exact DN string before you generate
 Or give you a hardened production-ready script version
 
 Or explain how to convert to PKCS12 if needed later
+
+
+
+Good. Now we’re talking clean crypto.
+
+You have:
+
+hsbc-orca-g2.pem (Root)
+
+hsbc-issuing-ca02-g2.pem (Intermediate)
+
+And you want OpenSSL-only flow, not keytool.
+
+I’ll give you the proper production sequence.
+
+✅ Step 1 — Generate Private Key
+openssl genrsa -out ibmmq-client.key 2048
+✅ Step 2 — Create CSR (Certificate Signing Request)
+
+Use correct DN structure (based on your page).
+
+Example NON-PROD (HK, DEV):
+openssl req -new \
+  -key ibmmq-client.key \
+  -out ibmmq-client.csr \
+  -subj "/CN=APPA_DEV/O=AP/OU=AUTHENC/L=MQCDEV/C=HK"
+
+Adjust:
+
+CN = <AppCode>_DEV or _PROD
+
+L = MQCDEV or MQCPROD
+
+O = AP / EU / NA
+
+C = HK / GB / US / FR
+
+That CSR goes to SNOW.
+
+✅ Step 3 — When You Receive Signed Client Certificate
+
+Let’s say they give you:
+
+signed_client_cert.pem
+✅ Step 4 — Build Full Certificate Chain File
+
+MQ and Kafka often want full chain.
+
+Create:
+
+cat signed_client_cert.pem \
+    hsbc-issuing-ca02-g2.pem \
+    hsbc-orca-g2.pem \
+    > ibmmq-client-fullchain.pem
+
+Order is critical:
+
+[ Client Cert ]
+[ Intermediate ]
+[ Root ]
+✅ Step 5 — Verify Chain
+openssl verify \
+  -CAfile <(cat hsbc-orca-g2.pem hsbc-issuing-ca02-g2.pem) \
+  signed_client_cert.pem
+
+Should return:
+
+signed_client_cert.pem: OK
+🔥 If You Need PKCS12 (For Kafka / Java Later)
+
+Even if you’re OpenSSL-only now, this is how to convert:
+
+openssl pkcs12 -export \
+  -in ibmmq-client-fullchain.pem \
+  -inkey ibmmq-client.key \
+  -out ibmmq-client.p12 \
+  -name ibmmq-client
+🚨 Important MQ-Specific Note
+
+IBM MQ expects:
+
+Client key file
+
+Client cert file
+
+OR a PKCS12
+
+Depending on how connector is configured.
+
+For OpenSSL TLS testing:
+
+openssl s_client \
+  -connect mqhost:1414 \
+  -cert ibmmq-client-fullchain.pem \
+  -key ibmmq-client.key \
+  -CAfile hsbc-orca-g2.pem
+⚠️ Common Mistakes
+
+Wrong DN format
+
+Wrong certificate order
+
+Missing intermediate
+
+Forgetting to include full chain
+
+Using root only for verify
+
+Now tell me:
+
+Are you using this for:
+
+Testing TLS handshake?
+
+Kafka MQ Sink Connector?
+
+Native MQ C client?
+
+MQ JMS?
+
+The next step depends on that.
+
+Kafka MQ Sink Connector?
+
+Good. Now we narrow it properly.
+
+For Kafka Connect → IBM MQ Sink Connector over TLS, using OpenSSL artifacts, you need this:
+
+Kafka (Java) does NOT use raw PEM key + cert directly.
+It needs PKCS12 or JKS.
+
+Since you want OpenSSL-only, we’ll generate everything with OpenSSL and then produce a PKCS12 for Kafka.
+
+🔥 Correct Flow for Kafka MQ Sink Connector (mTLS)
+
+You need:
+
+Client private key
+
+Signed client certificate
+
+Full chain
+
+PKCS12 keystore
+
+Truststore (CA only)
+
+✅ 1. Generate Private Key
+openssl genrsa -out ibmmq-client.key 2048
+✅ 2. Create CSR
+
+Example (NON-PROD HK DEV):
+
+openssl req -new \
+  -key ibmmq-client.key \
+  -out ibmmq-client.csr \
+  -subj "/CN=APPA_DEV/O=AP/OU=AUTHENC/L=MQCDEV/C=HK"
+
+Send ibmmq-client.csr to SNOW.
+
+✅ 3. When You Receive Signed Cert
+
+Assume:
+
+signed_client_cert.pem
+✅ 4. Build Full Chain
+cat signed_client_cert.pem \
+    hsbc-issuing-ca02-g2.pem \
+    hsbc-orca-g2.pem \
+    > ibmmq-client-fullchain.pem
+
+Order matters:
+
+Client
+
+Intermediate
+
+Root
+
+✅ 5. Create PKCS12 Keystore (THIS is what Kafka needs)
+openssl pkcs12 -export \
+  -in ibmmq-client-fullchain.pem \
+  -inkey ibmmq-client.key \
+  -name ibmmq-client \
+  -out ibmmq-client.p12
+
+Set a password.
+
+✅ 6. Create Truststore PKCS12 (CA only)
+
+Kafka also needs truststore.
+
+cat hsbc-issuing-ca02-g2.pem \
+    hsbc-orca-g2.pem \
+    > ca-chain.pem
+
+Then:
+
+openssl pkcs12 -export \
+  -in ca-chain.pem \
+  -nokeys \
+  -name mq-ca \
+  -out mq-truststore.p12
+🔥 Kafka Connector Config
+
+Inside your MQ Sink connector config:
+
+ssl.keystore.type=PKCS12
+ssl.keystore.location=/path/ibmmq-client.p12
+ssl.keystore.password=<password>
+
+ssl.truststore.type=PKCS12
+ssl.truststore.location=/path/mq-truststore.p12
+ssl.truststore.password=<password>
+🚨 Critical Check Before You Deploy
+
+Verify PKCS12:
+
+openssl pkcs12 -info -in ibmmq-client.p12
+You must see:
+
+private key
+
+certificate
+
+certificate chain
+
+If chain length = 1 → you built it wrong.
