@@ -1,0 +1,6 @@
+while read topic; do
+  echo "Updating $topic"
+  kafka-configs.sh --bootstrap-server <BROKER> \
+    --alter --entity-type topics --entity-name "$topic" \
+    --add-config min.insync.replicas=2
+done < topics.txt
