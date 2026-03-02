@@ -1,0 +1,13 @@
+<settings>
+  <proxies>
+    <proxy>
+      <id>corp-proxy</id>
+      <active>true</active>
+      <protocol>http</protocol>
+      <host>uk-proxy-01.systems.uk.hsbc</host>
+      <port>80</port>
+      <username>YOUR_AD_ID</username>
+      <password>YOUR_PASSWORD</password>
+    </proxy>
+  </proxies>
+</settings>
