@@ -1,48 +1,71 @@
 import com.ibm.mq.jms.MQConnectionFactory;
 import com.ibm.mq.constants.CMQC;
+
 import javax.jms.Connection;
 
-public class MQSSLQSGTest {
+public class Main {
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
 
-        // ---- Connection Settings ----
+        // ========= CONFIGURATION =========
         String channel = "YOUR.SVRCONN";
+
+        // QSG / multi-instance connection list
         String connectionList = "host1(1414),host2(1414),host3(1414)";
+
+        // Leave queue manager empty for QSG
+        String queueManager = "";
+
+        // MUST match channel SSLCIPH
         String cipherSuite = "TLS_RSA_WITH_AES_256_CBC_SHA256";
 
-        // ---- SSL Settings (P12) ----
-        System.setProperty("javax.net.ssl.keyStore", "C:/mq/ssl/client.p12");
-        System.setProperty("javax.net.ssl.keyStorePassword", "password");
-        System.setProperty("javax.net.ssl.keyStoreType", "PKCS12");
+        // PKCS12 file
+        String keyStorePath = "C:/mq/ssl/client.p12";
+        String keyStorePassword = "password";
 
-        System.setProperty("javax.net.ssl.trustStore", "C:/mq/ssl/client.p12");
-        System.setProperty("javax.net.ssl.trustStorePassword", "password");
-        System.setProperty("javax.net.ssl.trustStoreType", "PKCS12");
+        try {
 
-        // ---- MQ Connection Factory ----
-        MQConnectionFactory cf = new MQConnectionFactory();
+            // ========= SSL SETTINGS =========
+            System.setProperty("javax.net.ssl.keyStore", keyStorePath);
+            System.setProperty("javax.net.ssl.keyStorePassword", keyStorePassword);
+            System.setProperty("javax.net.ssl.keyStoreType", "PKCS12");
 
-        cf.setTransportType(CMQC.TRANSPORT_MQSERIES_CLIENT);
-        cf.setChannel(channel);
+            System.setProperty("javax.net.ssl.trustStore", keyStorePath);
+            System.setProperty("javax.net.ssl.trustStorePassword", keyStorePassword);
+            System.setProperty("javax.net.ssl.trustStoreType", "PKCS12");
 
-        // IMPORTANT: Empty queue manager for QSG
-        cf.setQueueManager("");
+            // Uncomment for deep SSL debug
+            // System.setProperty("javax.net.debug", "ssl,handshake");
 
-        // Connection list instead of single host
-        cf.setConnectionNameList(connectionList);
+            // ========= MQ FACTORY =========
+            MQConnectionFactory cf = new MQConnectionFactory();
 
-        // SSL Cipher
-        cf.setSSLCipherSuite(cipherSuite);
+            cf.setTransportType(CMQC.TRANSPORT_MQSERIES_CLIENT);
+            cf.setChannel(channel);
 
-        // Optional: enable automatic reconnect
-        cf.setClientReconnectOptions(CMQC.MQRCN_RECONNECT);
-        cf.setClientReconnectTimeout(300);
+            // VERY IMPORTANT FOR QSG
+            cf.setQueueManager(queueManager);
 
-        System.out.println("Attempting SSL connection to QSG...");
+            // Use connection list
+            cf.setConnectionNameList(connectionList);
 
-        Connection connection = cf.createConnection();
-        System.out.println("✅ SSL connection successful!");
-        connection.close();
+            cf.setSSLCipherSuite(cipherSuite);
+
+            // Optional: auto reconnect
+            cf.setClientReconnectOptions(CMQC.MQRCN_RECONNECT);
+            cf.setClientReconnectTimeout(300);
+
+            System.out.println("Attempting SSL connection...");
+
+            Connection connection = cf.createConnection();
+
+            System.out.println("✅ SSL connection successful!");
+
+            connection.close();
+
+        } catch (Exception e) {
+            System.out.println("❌ Connection failed!");
+            e.printStackTrace();
+        }
     }
 }
