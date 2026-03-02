@@ -1,0 +1,48 @@
+import com.ibm.mq.jms.MQConnectionFactory;
+import com.ibm.mq.constants.CMQC;
+import javax.jms.Connection;
+
+public class MQSSLQSGTest {
+
+    public static void main(String[] args) throws Exception {
+
+        // ---- Connection Settings ----
+        String channel = "YOUR.SVRCONN";
+        String connectionList = "host1(1414),host2(1414),host3(1414)";
+        String cipherSuite = "TLS_RSA_WITH_AES_256_CBC_SHA256";
+
+        // ---- SSL Settings (P12) ----
+        System.setProperty("javax.net.ssl.keyStore", "C:/mq/ssl/client.p12");
+        System.setProperty("javax.net.ssl.keyStorePassword", "password");
+        System.setProperty("javax.net.ssl.keyStoreType", "PKCS12");
+
+        System.setProperty("javax.net.ssl.trustStore", "C:/mq/ssl/client.p12");
+        System.setProperty("javax.net.ssl.trustStorePassword", "password");
+        System.setProperty("javax.net.ssl.trustStoreType", "PKCS12");
+
+        // ---- MQ Connection Factory ----
+        MQConnectionFactory cf = new MQConnectionFactory();
+
+        cf.setTransportType(CMQC.TRANSPORT_MQSERIES_CLIENT);
+        cf.setChannel(channel);
+
+        // IMPORTANT: Empty queue manager for QSG
+        cf.setQueueManager("");
+
+        // Connection list instead of single host
+        cf.setConnectionNameList(connectionList);
+
+        // SSL Cipher
+        cf.setSSLCipherSuite(cipherSuite);
+
+        // Optional: enable automatic reconnect
+        cf.setClientReconnectOptions(CMQC.MQRCN_RECONNECT);
+        cf.setClientReconnectTimeout(300);
+
+        System.out.println("Attempting SSL connection to QSG...");
+
+        Connection connection = cf.createConnection();
+        System.out.println("✅ SSL connection successful!");
+        connection.close();
+    }
+}
