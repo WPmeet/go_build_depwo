@@ -1,1 +1,9 @@
 k9scli.io
+
+
+kafka-configs.sh \
+  --bootstrap-server <broker:9092> \
+  --entity-type broker-loggers \
+  --entity-name <broker-id> \
+  --alter \
+  --add-config 'log4j.logger.org.apache.kafka=WARN,log4j.logger.kafka=ERROR' [web:24][web:25]
