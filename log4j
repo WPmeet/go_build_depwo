@@ -1,4 +1,14 @@
-  configOverrides:
+# Keep Splunk libraries at ERROR
+log4j.logger.com.splunk=ERROR, stdout
+
+# If Splunk sink connector classes are noisy, pin them too
+log4j.logger.com.splunk.kafka.connect=ERROR, stdout
+log4j.logger.com.splunk.hecclient=ERROR, stdout
+log4j.additivity.com.splunk.kafka.connect=false
+log4j.additivity.com.splunk.hecclient=false
+
+
+configOverrides:
     jvm:
       - -Djavax.net.debug=ssl,handshake
 
