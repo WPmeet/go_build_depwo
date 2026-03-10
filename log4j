@@ -1,3 +1,28 @@
+
+
+
+log4j:
+  # keep what you already have
+  - log4j.rootLogger=WARN, stdout
+  - log4j.logger.com.splunk=ERROR, stdout
+  - log4j.logger.com.splunk.kafka.connect=ERROR, stdout
+  - log4j.logger.com.splunk.hecclient=ERROR, stdout
+  - log4j.additivity.com.splunk.kafka.connect=false
+  - log4j.additivity.com.splunk.hecclient=false
+
+  # only NEW bit: extra appender that drops stack trace and matches the text
+  - log4j.appender.backpressure=org.apache.log4j.ConsoleAppender
+  - log4j.appender.backpressure.layout=org.apache.log4j.EnhancedPatternLayout
+  - log4j.appender.backpressure.layout.ConversionPattern=[%d{ISO8601}] %-5p %c %X{connector.context} - %m %throwable{none}%n
+  - log4j.appender.backpressure.filter.1=org.apache.log4j.varia.StringMatchFilter
+  - log4j.appender.backpressure.filter.1.StringToMatch=failed to send batch
+  - log4j.appender.backpressure.filter.1.AcceptOnMatch=true
+  - log4j.appender.backpressure.filter.2=org.apache.log4j.varia.DenyAllFilter
+
+  # and point just the noisy loggers at it
+  - log4j.logger.com.splunk.kafka.connect=ERROR, backpressure
+  - log4j.logger.com.splunk.hecclient=ERROR, backpressure
+
 # Keep Splunk libraries at ERROR
 log4j.logger.com.splunk=ERROR, stdout
 
