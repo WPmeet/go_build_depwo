@@ -1,6 +1,7 @@
 
 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
 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
+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
 log4j:
   # keep what you already have
   - log4j.rootLogger=WARN, stdout
