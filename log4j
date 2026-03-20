@@ -1,3 +1,8 @@
+index=hsbc_cto_kafka_connect earliest=-1h
+"ERROR"
+| rex field=message "(?<error_signature>(?:\S+\s+){10})"
+| stats count by error_signature
+| sort - count
 
 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
 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
