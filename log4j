@@ -1,6 +1,6 @@
-index=hsbc_cto_kafka_zookeeper earliest=-1h "ERROR" 
+index=hsbc_cto_kafka_zookeeper earliest=-1h "ERROR"
 namespace IN ("cto-esp-obs-prod-uk","cto-esp-obs-uat-uk","cto-esp-obs-dev-uk")
-| rex field=message "(?<error_signature>(?:\S+\s+){10})"
+| rex field=_raw "task-\d+\]\s+(?<error_signature>(?:\S+\s+){10})"
 | stats count by namespace error_signature
 | sort - count
 
