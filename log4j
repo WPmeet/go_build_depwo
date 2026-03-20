@@ -1,9 +1,9 @@
-index=hsbc_cto_kafka_connect earliest=-1h "ERROR"
-| rex field=_raw "namespace=(?<namespace>\S+)"
-| where like(namespace, "cto-esp%")
+index=hsbc_cto_kafka_zookeeper earliest=-1h "ERROR" 
+namespace IN ("cto-esp-obs-prod-uk","cto-esp-obs-uat-uk","cto-esp-obs-dev-uk")
 | rex field=message "(?<error_signature>(?:\S+\s+){10})"
-| stats count by error_signature
+| stats count by namespace error_signature
 | sort - count
+
 
 
 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
