@@ -4,6 +4,11 @@ namespace IN ("cto-esp-obs-prod-uk","cto-esp-obs-uat-uk","cto-esp-obs-dev-uk")
 | stats count by namespace error_signature
 | sort - count
 
+index=hsbc_cto_kafka_zookeeper earliest=-1h "ERROR"
+namespace IN ("cto-esp-obs-prod-uk","cto-esp-obs-uat-uk","cto-esp-obs-dev-uk")
+| rex field=_raw "SplunkSinkTask.*?- (?<error_signature>.*)"
+| stats count by namespace error_signature
+| sort - count
 
 
 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
