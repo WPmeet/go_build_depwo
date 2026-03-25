@@ -3,6 +3,8 @@ namespace IN ("cto-esp-obs-prod-uk","cto-esp-obs-uat-uk","cto-esp-obs-dev-uk")
 | rex field=_raw "task-\d+\]\s+(?<error_signature>(?:\S+\s+){10})"
 | stats count by namespace error_signature
 | sort - count
+curl -u 45468045:BrownySweety26* -I \
+  "https://nexus305.systems.uk.hsbc:8081/nexus/repository/maven-hsbc-internal-od_n3p/com/hsbc/wholesale/payments/pol/ibm/connect-plugins/ibm-mq-kafka-connectors/9.4.4.1/9.4.4.1-IBM-MQ-Kafka-Connectors.tar.gz"
 
 Invoke-WebRequest -Uri "https://nexus305.systems.uk.hsbc:8081/nexus/repository/maven-hsbc-internal-od_n3p/com/hsbc/wholesale/payments/pol/ibm/connect-plugins/ibm-mq-kafka-connectors/9.4.4.1/9.4.4.1-IBM-MQ-Kafka-Connectors.tar.gz" -Method HEAD -Headers @{Authorization = "Basic " + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("45468045:BrownySweety26*"))}
 
