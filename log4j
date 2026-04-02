@@ -3,7 +3,7 @@ $ns = "cto-esp-obs-nonprod-hk"
 kubectl get connectors -n $ns -o jsonpath='{.items[*].metadata.name}' `
 | % { kubectl annotate connector $_ -n $ns platform.confluent.io/pause-connector="true" --overwrite }
 
-
+(kubectl get connectors -n cto-esp-obs-nonprod-hk -o jsonpath='{.items[*].metadata.name}').Split(' ') | % { kubectl annotate connector $_ -n cto-esp-obs-nonprod-hk "platform.confluent.io/pause-connector=true" --overwrite } 
 index=hsbc_cto_kafka_zookeeper earliest=-1h "ERROR"
 namespace IN ("cto-esp-obs-prod-uk","cto-esp-obs-uat-uk","cto-esp-obs-dev-uk")
 | rex field=_raw "task-\d+\]\s+(?<error_signature>(?:\S+\s+){10})"
