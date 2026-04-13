@@ -1,0 +1,20 @@
+Hi Matt,
+
+Good morning — following up on Trevor’s previous email.
+
+We have downloaded the Kafka Connect package (source and sink) from Download Central:
+9.4.5.0-IBM-MQ-Kafka-Connectors.tar
+
+Within the package, we can see the connector JARs under both the Sink and Source directories. However, it appears that the required dependencies are missing.
+
+Could you please help clarify:
+
+If the connector JAR is downloaded directly from IBM Passport Advantage, how should we source its dependencies?
+What specific dependencies are required for this connector?
+
+Additionally, is there a version of this package available (either on Passport Advantage or the official site) as a single bundled JAR that includes all dependencies?
+
+Thanks in advance for your help.
+
+Best regards,
+Manmeet
