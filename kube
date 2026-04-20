@@ -1,3 +1,16 @@
+curl -O https://packages.confluent.io/bundle/cfk/confluent-for-kubernetes-3.2.0.tar.gz
+tar -xzf confluent-for-kubernetes-3.2.0.tar.gz
+This creates a directory like confluent-for-kubernetes-3.2.0/ which contains kubectl-plugin/ with platform-specific plugin archives.
+
+2. Unpack the kubectl plugin for your OS
+From inside the unpacked bundle, extract the right archive into a directory on your PATH.
+
+On Windows (what you’re using)
+In PowerShell, from the bundle root:
+
+powershell
+tar -xvf kubectl-plugin/kubectl-confluent-windows-amd64.tar.gz -C C:\Users\<you>\bin
+
 Create Client Keystore (JKS)
 Original (runmqckm)
 runmqckm -keydb -create -db filename.jks -pw <pwd> -type jks
