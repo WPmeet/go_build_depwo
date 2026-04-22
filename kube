@@ -1,3 +1,10 @@
+
+kubectl create secret generic tls-kafka-mq-source-connector \
+  --from-file=fullchain.pem=fullchain.pem \
+  --from-file=privkey.pem=your-private-key.pem \
+  --from-file=cacerts.pem=cacerts.pem \
+  -n cto-esp-obs-dev-uk
+
 curl -O https://packages.confluent.io/bundle/cfk/confluent-for-kubernetes-3.2.0.tar.gz
 tar -xzf confluent-for-kubernetes-3.2.0.tar.gz
 This creates a directory like confluent-for-kubernetes-3.2.0/ which contains kubectl-plugin/ with platform-specific plugin archives.
