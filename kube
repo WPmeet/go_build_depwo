@@ -5,6 +5,14 @@ kubectl create secret generic tls-kafka-mq-source-connector \
   --from-file=cacerts.pem=cacerts.pem \
   -n cto-esp-obs-dev-uk
 
+
+kubectl create secret generic mongodb-credentials \
+  --namespace confluent \
+  --from-literal=username='<mongodb-username>' \
+  --from-literal=password='<mongodb-password>' \
+  --from-literal=connectionString='mongodb://<mongodb-username>:<mongodb-password>@<host>:27017/<database>?authSource=admin'
+
+
 curl -O https://packages.confluent.io/bundle/cfk/confluent-for-kubernetes-3.2.0.tar.gz
 tar -xzf confluent-for-kubernetes-3.2.0.tar.gz
 This creates a directory like confluent-for-kubernetes-3.2.0/ which contains kubectl-plugin/ with platform-specific plugin archives.
