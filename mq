@@ -1,0 +1,25 @@
+{
+  "name": "mq-source-q1",
+  "config": {
+    "connector.class": "com.ibm.eventstreams.connect.mqsource.MQSourceConnector",
+    "tasks.max": "1",
+
+    "topic": "mq.q1.events",
+
+    "mq.queue.manager": "QM.ZOS.SHARED",
+    "mq.connection.mode": "client",
+    "mq.connection.name.list": "zos-mq-host(1414)",
+    "mq.channel.name": "SOME.SVRCONN.ZOS",
+    "mq.queue": "SOURCE.QUEUE.NAME",
+
+    "mq.message.body.jms": "false",
+    "mq.batch.size": "250",
+    "mq.message.receive.timeout": "2000",
+
+    "mq.ssl.cipher.suite": "TLS_RSA_WITH_AES_256_CBC_SHA256",
+    "mq.ssl.keystore.location": "/mnt/secrets/ibmmq-tls/ibmmq-client.p12",
+    "mq.ssl.keystore.password": "changeit",
+    "mq.ssl.truststore.location": "/mnt/secrets/ibmmq-tls/mq-trust.p12",
+    "mq.ssl.truststore.password": "changeit"
+  }
+}
