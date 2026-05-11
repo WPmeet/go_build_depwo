@@ -1,0 +1,63 @@
+import com.ibm.mq.jms.MQConnectionFactory;
+import com.ibm.msg.client.wmq.WMQConstants;
+
+import javax.jms.Connection;
+import javax.jms.Session;
+import javax.jms.Queue;
+import javax.jms.MessageProducer;
+import javax.jms.TextMessage;
+
+public class Main {
+    public static void main(String[] args) {
+
+        String connectionList = "128.88.64.200(27312)";
+        String queueManager = "";
+        String channel = "GB_KCPOC.SVRCONN";
+        String queueName = "GB_JA_GP.PLM.GB_PAYMENTS.DGRM";
+        String cipherSuite = "TLS_RSA_WITH_AES_256_CBC_SHA256";
+
+        String keyStorePath = "C:/mq/ibmmq-client.p12";
+        String trustStorePath = "C:/mq/mq-trust.p12";
+        String keyStorePassword = "TestP12pass123";
+
+        try {
+            System.setProperty("javax.net.ssl.keyStore", keyStorePath);
+            System.setProperty("javax.net.ssl.keyStorePassword", keyStorePassword);
+            System.setProperty("javax.net.ssl.keyStoreType", "PKCS12");
+            System.setProperty("javax.net.ssl.trustStore", trustStorePath);
+            System.setProperty("javax.net.ssl.trustStorePassword", keyStorePassword);
+            System.setProperty("javax.net.ssl.trustStoreType", "PKCS12");
+
+            MQConnectionFactory cf = new MQConnectionFactory();
+            cf.setTransportType(WMQConstants.WMQ_CM_CLIENT);
+            cf.setChannel(channel);
+            cf.setQueueManager(queueManager);
+            cf.setConnectionNameList(connectionList);
+            cf.setSSLCipherSuite(cipherSuite);
+            cf.setClientReconnectOptions(WMQConstants.WMQ_CLIENT_RECONNECT);
+            cf.setClientReconnectTimeout(300);
+
+            Connection connection = cf.createConnection();
+            connection.start();
+
+            Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+            Queue queue = session.createQueue("queue:///" + queueName);
+            MessageProducer producer = session.createProducer(queue);
+
+            String jsonMessage = "{\"id\":\"1\",\"msg\":\"test\"}";
+            TextMessage message = session.createTextMessage(jsonMessage);
+
+            producer.send(message);
+
+            System.out.println("JSON message sent successfully: " + jsonMessage);
+
+            producer.close();
+            session.close();
+            connection.close();
+
+        } catch (Exception e) {
+            System.out.println("Connection / send failed");
+            e.printStackTrace();
+        }
+    }
+}
