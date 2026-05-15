@@ -1,20 +1,55 @@
-{
-  "name": "mongodb-source-orders",
-  "config": {
-    "connector.class": "com.mongodb.kafka.connect.MongoSourceConnector",
-    "tasks.max": "1",
+apiVersion: platform.confluent.io/v1beta1
+kind: Connector
+metadata:
+  name: cto-cfk-mongodb-source-connector-plm-test-v1
+  namespace: cto-esp-dev-uk
+spec:
+  class: com.mongodb.kafka.connect.MongoSourceConnector
+  taskMax: 1
+  connectRest:
+    authentication:
+      sslClientAuthentication: true
+      type: mtls
+    endpoint: https://cto-esp-dev-uk-azs1003-connect-lb.uk.hsbc:8083
+    tls:
+      secretRef: tls-connector
+  restartPolicy:
+    type: OnFailure
+    maxRetry: 20
+  configs:
+    # Mongo connection
+    connection.uri: "mongodb://mongo-user:mongo-pass@mongo1:27017,mongo2:27017,mongo3:27017/?replicaSet=rs0&authSource=admin"
 
-    "connection.uri": "mongodb://user:pass@mongo1:27017,mongo2:27017,mongo3:27017/?replicaSet=rs0",
+    # Namespaces
+    database: "plm_dev"
+    collection: "mb0b_queue"
 
-    "database": "mydb",
-    "collection": "orders",
+    # Topic naming
+    topic.prefix: "plm.dev.mqsource.mongodb"
 
-    "topic.prefix": "mongo",
+    # Startup behavior
+    startup.mode: "latest"           # or "copy_existing"
+    change.stream.full.document: "updateLookup"
 
-    "startup.mode": "latest",
-    "change.stream.full.document": "updateLookup",
+    # Output format (JSON, no Schema Registry)
+    key.converter: "org.apache.kafka.connect.json.JsonConverter"
+    value.converter: "org.apache.kafka.connect.json.JsonConverter"
+    key.converter.schemas.enable: "false"
+    value.converter.schemas.enable: "false"
+    output.format.value: "json"
+    output.json.formatter: "com.mongodb.kafka.connect.source.json.formatter.SimplifiedJson"
 
-    "output.format.value": "json",
-    "output.json.formatter": "com.mongodb.kafka.connect.source.json.formatter.SimplifiedJson"
-  }
-}
+    # Optional: pipeline to filter events
+    # Note: must be a JSON string
+    pipeline: "[{\"$match\": {\"operationType\": {\"$in\": [\"insert\",\"update\",\"replace\",\"delete\"]}}}]"
+
+    # Optional: copy-existing settings (if startup.mode=copy_existing)
+    copy.existing.max.threads: "4"
+    copy.existing.namespace.regex: "plm_dev.mb0b_queue"
+
+    # Kafka producer overrides (follow your MQ pattern if needed)
+    producer.override.security.protocol: "SSL"
+    producer.override.ssl.keystore.location: "/mnt/sslcerts/tls-kafka-user/keystore.p12"
+    producer.override.ssl.keystore.password: "mystorepassword"
+    producer.override.ssl.truststore.location: "/mnt/sslcerts/tls-kafka-user/truststore.p12"
+    producer.override.ssl.truststore.password: "mystorepassword"
