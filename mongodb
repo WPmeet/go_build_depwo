@@ -1,0 +1,20 @@
+{
+  "name": "mongodb-source-orders",
+  "config": {
+    "connector.class": "com.mongodb.kafka.connect.MongoSourceConnector",
+    "tasks.max": "1",
+
+    "connection.uri": "mongodb://user:pass@mongo1:27017,mongo2:27017,mongo3:27017/?replicaSet=rs0",
+
+    "database": "mydb",
+    "collection": "orders",
+
+    "topic.prefix": "mongo",
+
+    "startup.mode": "latest",
+    "change.stream.full.document": "updateLookup",
+
+    "output.format.value": "json",
+    "output.json.formatter": "com.mongodb.kafka.connect.source.json.formatter.SimplifiedJson"
+  }
+}
