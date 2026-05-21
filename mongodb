@@ -66,3 +66,11 @@ openssl s_client \
   -showcerts </dev/null 2>/dev/null | \
   awk '/BEGIN CERTIFICATE/{flag=1} flag{print} /END CERTIFICATE/{flag=0}' \
   > mongo-full-chain.pem
+
+csplit -sz /tmp/mongo-sclient.out '/BEGIN CERTIFICATE/' '{*}'
+# gives you xx00, xx01, xx02...
+
+for f in xx0*; do
+  echo "=== $f ==="
+  openssl x509 -in "$f" -text -noout | grep -E 'Subject:|Issuer:'
+done
