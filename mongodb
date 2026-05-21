@@ -61,3 +61,8 @@ java \
   -classpath /tmp \
   -XshowSettings:properties \
   -version 2>&1 | grep -E "javax.net.ssl.trustStore"
+openssl s_client \
+  -connect hk125070828.hk.hsbc:5255 \
+  -showcerts </dev/null 2>/dev/null | \
+  awk '/BEGIN CERTIFICATE/{flag=1} flag{print} /END CERTIFICATE/{flag=0}' \
+  > mongo-full-chain.pem
