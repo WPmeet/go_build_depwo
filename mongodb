@@ -53,3 +53,11 @@ spec:
     producer.override.ssl.keystore.password: "mystorepassword"
     producer.override.ssl.truststore.location: "/mnt/sslcerts/tls-kafka-user/truststore.p12"
     producer.override.ssl.truststore.password: "mystorepassword"
+
+
+java \
+  -Djavax.net.ssl.trustStore=/mnt/secrets/dev-mongodb-trust/mongo-truststore.p12 \
+  -Djavax.net.ssl.trustStorePassword=mystorepassword \
+  -classpath /tmp \
+  -XshowSettings:properties \
+  -version 2>&1 | grep -E "javax.net.ssl.trustStore"
