@@ -1,76 +1,76 @@
 apiVersion: platform.confluent.io/v1beta1
 kind: Connector
+
 metadata:
-  name: cto-cfk-mongodb-source-connector-plm-test-v1
+  name: cto-cfk-kafka-mongodb-source-connector-cdms-test-v2
   namespace: cto-esp-dev-uk
+
 spec:
   class: com.mongodb.kafka.connect.MongoSourceConnector
-  taskMax: 1
+
+  configs:
+    connection.uri: "${file:/mnt/secrets/dev-mongodb-certs/mongodb-coonection-uri:mongodb-coonection-uri}"
+
+    database: "CDMS_HK_HBAP_CLUSTER_DEV"
+    collection: "party"
+    topic.prefix: "cdms-hk-hbap-cluster-dev-mongodb"
+
+    startup.mode: "latest"
+    change.stream.full.document: "updateLookup"
+
+    # JSON without Schema Registry
+    key.converter: "org.apache.kafka.connect.json.JsonConverter"
+    value.converter: "org.apache.kafka.connect.json.JsonConverter"
+    key.converter.schemas.enable: "false"
+    value.converter.schemas.enable: "false"
+
+    output.format.key: "json"
+    output.format.value: "json"
+    output.json.formatter: "com.mongodb.kafka.connect.source.json.formatter.SimplifiedJson"
+
+    # Add top-level kafkaKey from nested fullDocument._id
+    pipeline: |
+      [
+        {
+          "$addFields": {
+            "kafkaKey": "$fullDocument._id"
+          }
+        }
+      ]
+
+    # Built-in SMTs only, no extra jars
+    transforms: "createKey,extractKey"
+
+    transforms.createKey.type: "org.apache.kafka.connect.transforms.ValueToKey"
+    transforms.createKey.fields: "kafkaKey"
+
+    transforms.extractKey.type: "org.apache.kafka.connect.transforms.ExtractField$Key"
+    transforms.extractKey.field: "kafkaKey"
+
+    # SSL / mTLS
+    producer.override.security.protocol: "SSL"
+
+    producer.override.ssl.keystore.location: "/mnt/sslcerts/tls-mq-user/keystore.p12"
+    producer.override.ssl.keystore.password: "mystorepassword"
+
+    producer.override.ssl.truststore.location: "/mnt/sslcerts/tls-mq-user/truststore.p12"
+    producer.override.ssl.truststore.password: "mystorepassword"
+
+    mongo.ssl.enabled: "true"
+    mongo.ssl.truststore: "/mnt/secrets/dev-mongodb-trust/mongo-truststore.p12"
+    mongo.ssl.truststore.password: "mystorepassword"
+
   connectRest:
     authentication:
       sslClientAuthentication: true
       type: mtls
     endpoint: https://cto-esp-dev-uk-azs1003-connect-lb.uk.hsbc:8083
-    tls:
-      secretRef: tls-connector
+
+  tls:
+    secretRef: tls-connector
+
   restartPolicy:
-    type: OnFailure
     maxRetry: 20
-  configs:
-    # Mongo connection
-    connection.uri: "mongodb://mongo-user:mongo-pass@mongo1:27017,mongo2:27017,mongo3:27017/?replicaSet=rs0&authSource=admin"
+    type: OnFailure
 
-    # Namespaces
-    database: "plm_dev"
-    collection: "mb0b_queue"
-
-    # Topic naming
-    topic.prefix: "plm.dev.mqsource.mongodb"
-
-    # Startup behavior
-    startup.mode: "latest"           # or "copy_existing"
-    change.stream.full.document: "updateLookup"
-
-    # Output format (JSON, no Schema Registry)
-    key.converter: "org.apache.kafka.connect.json.JsonConverter"
-    value.converter: "org.apache.kafka.connect.json.JsonConverter"
-    key.converter.schemas.enable: "false"
-    value.converter.schemas.enable: "false"
-    output.format.value: "json"
-    output.json.formatter: "com.mongodb.kafka.connect.source.json.formatter.SimplifiedJson"
-
-    # Optional: pipeline to filter events
-    # Note: must be a JSON string
-    pipeline: "[{\"$match\": {\"operationType\": {\"$in\": [\"insert\",\"update\",\"replace\",\"delete\"]}}}]"
-
-    # Optional: copy-existing settings (if startup.mode=copy_existing)
-    copy.existing.max.threads: "4"
-    copy.existing.namespace.regex: "plm_dev.mb0b_queue"
-
-    # Kafka producer overrides (follow your MQ pattern if needed)
-    producer.override.security.protocol: "SSL"
-    producer.override.ssl.keystore.location: "/mnt/sslcerts/tls-kafka-user/keystore.p12"
-    producer.override.ssl.keystore.password: "mystorepassword"
-    producer.override.ssl.truststore.location: "/mnt/sslcerts/tls-kafka-user/truststore.p12"
-    producer.override.ssl.truststore.password: "mystorepassword"
-
-
-java \
-  -Djavax.net.ssl.trustStore=/mnt/secrets/dev-mongodb-trust/mongo-truststore.p12 \
-  -Djavax.net.ssl.trustStorePassword=mystorepassword \
-  -classpath /tmp \
-  -XshowSettings:properties \
-  -version 2>&1 | grep -E "javax.net.ssl.trustStore"
-openssl s_client \
-  -connect hk125070828.hk.hsbc:5255 \
-  -showcerts </dev/null 2>/dev/null | \
-  awk '/BEGIN CERTIFICATE/{flag=1} flag{print} /END CERTIFICATE/{flag=0}' \
-  > mongo-full-chain.pem
-
-csplit -sz /tmp/mongo-sclient.out '/BEGIN CERTIFICATE/' '{*}'
-# gives you xx00, xx01, xx02...
-
-for f in xx0*; do
-  echo "=== $f ==="
-  openssl x509 -in "$f" -text -noout | grep -E 'Subject:|Issuer:'
-done
+  taskMax: 1
