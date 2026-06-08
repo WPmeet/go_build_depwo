@@ -1,6 +1,41 @@
 
 
+For the root-level pipeline option, next change to try:
 
+output.schema.infer.value: "true"
+output.format.value: "schema"
+
+and use:
+
+pipeline: |
+  [
+    {
+      "$replaceRoot": {
+        "newRoot": {
+          "$mergeObjects": [
+            "$$ROOT",
+            {
+              "partyIdRoot": "$fullDocument.partyIdentifier"
+            }
+          ]
+        }
+      }
+    }
+  ]
+
+Then:
+
+transforms: "createKey"
+transforms.createKey.type: "org.apache.kafka.connect.transforms.ValueToKey"
+transforms.createKey.fields: "partyIdRoot"
+
+But if it still says field does not exist, then the connector’s schema mode simply does not include pipeline-created root fields for SMT. In that case your working solution remains the right one:
+
+publish fullDocument only
+copy CDC metadata into fullDocument
+key = partyIdentifier
+
+Keep making your changes; the exact next evidence we need is whether partyIdRoot becomes visible to ValueToKey, not just visible in the printed JSON.
 
 apiVersion: platform.confluent.io/v1beta1
 kind: Connector
