@@ -1,3 +1,11 @@
+kafka-console-consumer.sh \
+  --bootstrap-server <broker>:9092 \
+  --topic <topic> \
+  --property print.key=true \
+  --property print.partition=true \
+  --property print.offset=true \
+  --property key.separator='|' \
+| awk -F'|' '{print "partition="$1"\noffset="$2"\nkey="$3"\nvalue="$4"\n"}'
 
 
 For the root-level pipeline option, next change to try:
