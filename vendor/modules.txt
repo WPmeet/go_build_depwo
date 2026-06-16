@@ -637,7 +637,10 @@ github.com/charmbracelet/x/cellbuf
 # github.com/charmbracelet/x/term v0.2.1
 ## explicit; go 1.18
 github.com/charmbracelet/x/term
-# github.com/clipperhouse/uax29/v2 v2.2.0
+# github.com/clipperhouse/stringish v0.1.1
+## explicit; go 1.18
+github.com/clipperhouse/stringish
+# github.com/clipperhouse/uax29/v2 v2.3.0
 ## explicit; go 1.18
 github.com/clipperhouse/uax29/v2/graphemes
 github.com/clipperhouse/uax29/v2/internal/iterators
@@ -1308,11 +1311,11 @@ github.com/iancoleman/strcase
 # github.com/inconshreveable/mousetrap v1.1.0
 ## explicit; go 1.18
 github.com/inconshreveable/mousetrap
-# github.com/itchyny/gojq v0.12.17
-## explicit; go 1.21
+# github.com/itchyny/gojq v0.12.19
+## explicit; go 1.24.0
 github.com/itchyny/gojq
-# github.com/itchyny/timefmt-go v0.1.6
-## explicit; go 1.20
+# github.com/itchyny/timefmt-go v0.1.8
+## explicit; go 1.24
 github.com/itchyny/timefmt-go
 # github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99
 ## explicit
@@ -1956,7 +1959,7 @@ golang.org/x/oauth2/jwt
 ## explicit; go 1.24.0
 golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
-# golang.org/x/sys v0.36.0
+# golang.org/x/sys v0.38.0
 ## explicit; go 1.24.0
 golang.org/x/sys/cpu
 golang.org/x/sys/execabs
