@@ -11,28 +11,32 @@ kafka-console-consumer.sh \
 {{ toYaml . | nindent 6 }}
 {{- end }}
 
-podSpec:
-  containers:
-    - name: connect
-      command:
-        - sh
-        - -c
-      args:
-        - |
-          set -eu
+kafkaConnect:
+  mongoJvmSecret:
+    passwordFile: /vault/secrets/mongo-truststore-p12-password
 
-          PASS_FILE="/vault/secrets/mongo-truststore-p12-password"
+  podSpec:
+    containers:
+      - name: connect
+        command:
+          - sh
+          - -c
+        args:
+          - |
+            set -eu
 
-          if [ ! -s "$PASS_FILE" ]; then
-            echo "ERROR: missing Mongo truststore password file: $PASS_FILE" >&2
-            exit 1
-          fi
+            PASS_FILE="{{ .Values.kafkaConnect.mongoJvmSecret.passwordFile }}"
 
-          PASS="$(tr -d '\r\n' < "$PASS_FILE")"
+            if [ ! -s "$PASS_FILE" ]; then
+              echo "ERROR: missing Mongo truststore password file: $PASS_FILE" >&2
+              exit 1
+            fi
 
-          export KAFKA_OPTS="${KAFKA_OPTS:-} -Djavax.net.ssl.trustStorePassword=${PASS}"
+            PASS="$(tr -d '\r\n' < "$PASS_FILE")"
 
-          exec /etc/confluent/docker/run
+            export KAFKA_OPTS="${KAFKA_OPTS:-} -Djavax.net.ssl.trustStorePassword=${PASS}"
+
+            exec /etc/confluent/docker/run
 
 For the root-level pipeline option, next change to try:
 
