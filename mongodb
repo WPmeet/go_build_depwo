@@ -6,6 +6,11 @@ kafka-console-consumer.sh \
   --property print.offset=true \
   --property key.separator='|' \
 | awk -F'|' '{print "partition="$1"\noffset="$2"\nkey="$3"\nvalue="$4"\n"}'
+{{- with .Values.kafkaConnect.podSpec }}
+    podSpec:
+{{ toYaml . | nindent 6 }}
+{{- end }}
+
 podSpec:
   containers:
     - name: connect
