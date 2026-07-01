@@ -10,6 +10,10 @@ kafka-console-consumer.sh \
     podSpec:
 {{ toYaml . | nindent 6 }}
 {{- end }}
+{{- if and .Values.kafkaConnect.podSpec .Values.kafkaConnect.mongoJvmSecret.passwordFile }}
+    podSpec:
+{{ tpl (toYaml .Values.kafkaConnect.podSpec) $ | nindent 6 }}
+{{- end }}
 
 kafkaConnect:
   mongoJvmSecret:
@@ -37,7 +41,6 @@ kafkaConnect:
             export KAFKA_OPTS="${KAFKA_OPTS:-} -Djavax.net.ssl.trustStorePassword=${PASS}"
 
             exec /etc/confluent/docker/run
-
 For the root-level pipeline option, next change to try:
 
 output.schema.infer.value: "true"
