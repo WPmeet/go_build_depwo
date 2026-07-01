@@ -6,7 +6,28 @@ kafka-console-consumer.sh \
   --property print.offset=true \
   --property key.separator='|' \
 | awk -F'|' '{print "partition="$1"\noffset="$2"\nkey="$3"\nvalue="$4"\n"}'
+podSpec:
+  containers:
+    - name: connect
+      command:
+        - sh
+        - -c
+      args:
+        - |
+          set -eu
 
+          PASS_FILE="/vault/secrets/mongo-truststore-p12-password"
+
+          if [ ! -s "$PASS_FILE" ]; then
+            echo "ERROR: missing Mongo truststore password file: $PASS_FILE" >&2
+            exit 1
+          fi
+
+          PASS="$(tr -d '\r\n' < "$PASS_FILE")"
+
+          export KAFKA_OPTS="${KAFKA_OPTS:-} -Djavax.net.ssl.trustStorePassword=${PASS}"
+
+          exec /etc/confluent/docker/run
 
 For the root-level pipeline option, next change to try:
 
