@@ -23,29 +23,26 @@ kafka-console-consumer.sh \
 kafkaConnect:
   mongoJvmSecret:
     passwordFile: /vault/secrets/mongo-truststore-p12-password
+{{- if .Values.connector.connectorSecretsToIngest }}
+{{- $root := . }}
+{{- range $folder, $secretList := .Values.connector.connectorSecretsToIngest }}
+{{- range $secret := $secretList }}
 
-  podSpec:
-    containers:
-      - name: connect
-        command:
-          - sh
-          - -c
-        args:
-          - |
-            set -eu
+vault.hashicorp.com/agent-inject-file-{{ $folder }}-{{ $secret.name }}: {{ $secret.fileName }}
+vault.hashicorp.com/secret-volume-path-{{ $folder }}-{{ $secret.name }}: /vault/secrets/connector/{{ $folder }}
+vault.hashicorp.com/agent-inject-secret-{{ $folder }}-{{ $secret.name }}: secrets/kv_v2/ctoeep/data/{{ include "cfk.namespace" $root }}/{{ $root.Values.connectClusterName }}/shared/{{ $folder }}
+vault.hashicorp.com/agent-inject-template-{{ $folder }}-{{ $secret.name }}: |
+  {{ printf "{{- with secret \"secrets/kv_v2/ctoeep/data/%s/%s/shared/%s\" -}}" (include "cfk.namespace" $root) $root.Values.connectClusterName $folder }}
+  {{- if $secret.decodeBase64 }}
+  {{ printf "{{ index .Data.data \"%s\" | base64Decode }}" $secret.vaultKey }}
+  {{- else }}
+  {{ printf "{{ index .Data.data \"%s\" }}" $secret.vaultKey }}
+  {{- end }}
+  {{ "{{- end }}" }}
 
-            PASS_FILE="{{ .Values.kafkaConnect.mongoJvmSecret.passwordFile }}"
-
-            if [ ! -s "$PASS_FILE" ]; then
-              echo "ERROR: missing Mongo truststore password file: $PASS_FILE" >&2
-              exit 1
-            fi
-
-            PASS="$(tr -d '\r\n' < "$PASS_FILE")"
-
-            export KAFKA_OPTS="${KAFKA_OPTS:-} -Djavax.net.ssl.trustStorePassword=${PASS}"
-
-            exec /etc/confluent/docker/run
+{{- end }}
+{{- end }}
+{{- end }}
 For the root-level pipeline option, next change to try:
 
 output.schema.infer.value: "true"
