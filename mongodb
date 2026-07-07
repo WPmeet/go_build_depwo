@@ -1,4 +1,15 @@
-kafka-console-consumer.sh \
+pipeline: |
+  [
+    {
+      "$set": {
+        "documentKey": {
+          "partyId": "$fullDocument.partyIdentifier"
+        }
+      }
+    }
+  ]
+
+afka-console-consumer.sh \
   --bootstrap-server <broker>:9092 \
   --topic <topic> \
   --property print.key=true \
