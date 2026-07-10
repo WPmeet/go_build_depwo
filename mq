@@ -23,3 +23,19 @@
     "mq.ssl.truststore.password": "changeit"
   }
 }
+keytool -importkeystore \
+  -srckeystore client-keystore.p12 \
+  -srcstoretype PKCS12 \
+  -srcstorepass 'SOURCE_PASSWORD' \
+  -destkeystore client-keystore.jks \
+  -deststoretype JKS \
+  -deststorepass 'DEST_PASSWORD' \
+  -destkeypass 'DEST_PASSWORD'
+
+keytool -importkeystore \
+  -srckeystore client-truststore.p12 \
+  -srcstoretype PKCS12 \
+  -srcstorepass 'SOURCE_PASSWORD' \
+  -destkeystore client-truststore.jks \
+  -deststoretype JKS \
+  -deststorepass 'DEST_PASSWORD'
