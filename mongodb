@@ -8,26 +8,6 @@ pipeline: |
       }
     }
   ]
-{{- define "cfk.connector.source.connection" -}}
-
-{{- $root := .root -}}
-{{- $connectorConfigs := .connectorConfigs -}}
-
-{{- if hasKey $root.Values.cfk.connector "source" -}}
-
-{{- $connectionConfigs := deepCopy $root.Values.cfk.connector.source.connection -}}
-{{- $configs := index $connectorConfigs "configs" -}}
-{{- $database := index $configs "database" -}}
-
-{{- $connectionUri := printf "${file:/vault/secrets/connector/mongodb/%s-mongodb-connection-uri-b64:mongodb-connection-uri}" $database -}}
-
-{{- $_ := set $connectionConfigs "connection.uri" $connectionUri -}}
-
-{{- toYaml $connectionConfigs | nindent 4 }}
-
-{{- end -}}
-{{- end -}} 
-
 
 afka-console-consumer.sh \
   --bootstrap-server <broker>:9092 \
