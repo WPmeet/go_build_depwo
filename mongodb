@@ -9,6 +9,67 @@ pipeline: |
     }
   ]
 
+
+{{- define "cfk.connector.source.mongodb.connection" -}}
+{{- $root := .root -}}
+{{- $connectorConfigs := .connectorConfigs -}}
+{{- $configs := index $connectorConfigs "configs" | default dict -}}
+
+{{- if and
+      (hasKey $configs "database")
+      (hasKey $root.Values.cfk.connector "source")
+      (hasKey $root.Values.cfk.connector.source "connection")
+-}}
+
+{{- $connectionConfigs := deepCopy $root.Values.cfk.connector.source.connection -}}
+{{- $database := index $configs "database" -}}
+
+{{- if hasKey $connectionConfigs "connection.uri" -}}
+{{- $connectionUri := printf "${file:/vault/secrets/connector/mongodb/%s-conn-uri:mongodb-connection-uri}" $database -}}
+{{- $_ := set $connectionConfigs "connection.uri" $connectionUri -}}
+{{- end -}}
+
+{{- toYaml $connectionConfigs | nindent 4 }}
+{{- end -}}
+{{- end -}}
+
+{{- define "cfk.connector.source.mq.connection" -}}
+{{- $root := .root -}}
+{{- $connectorConfigs := .connectorConfigs -}}
+{{- $configs := index $connectorConfigs "configs" | default dict -}}
+
+{{- if and
+      (hasKey $configs "mq.queue.manager")
+      (hasKey $root.Values.cfk.connector "source")
+      (hasKey $root.Values.cfk.connector.source "connection")
+-}}
+
+{{- $sourceConnection := $root.Values.cfk.connector.source.connection -}}
+{{- $mqConnection := dict -}}
+
+{{- $mqProperties := list
+      "mq.ssl.keystore.location"
+      "mq.ssl.keystore.password"
+      "mq.ssl.truststore.location"
+      "mq.ssl.truststore.password"
+      "mq.connection.user"
+      "mq.connection.password"
+-}}
+
+{{- range $property := $mqProperties -}}
+{{- if hasKey $sourceConnection $property -}}
+{{- $_ := set $mqConnection $property (index $sourceConnection $property) -}}
+{{- end -}}
+{{- end -}}
+
+{{- if gt (len $mqConnection) 0 }}
+{{- toYaml $mqConnection | nindent 4 }}
+{{- end -}}
+
+{{- end -}}
+{{- end -}}
+
+
 afka-console-consumer.sh \
   --bootstrap-server <broker>:9092 \
   --topic <topic> \
@@ -40,6 +101,11 @@ kafkaConnect:
 {{- range $secret := $secretList }}
 
 vault.hashicorp.com/agent-inject-file-{{ $folder }}-{{ $secret.name }}: {{ $secret.fileName }}
+
+
+
+
+
 vault.hashicorp.com/secret-volume-path-{{ $folder }}-{{ $secret.name }}: /vault/secrets/connector/{{ $folder }}
 vault.hashicorp.com/agent-inject-secret-{{ $folder }}-{{ $secret.name }}: secrets/kv_v2/ctoeep/data/{{ include "cfk.namespace" $root }}/{{ $root.Values.connectClusterName }}/shared/{{ $folder }}
 vault.hashicorp.com/agent-inject-template-{{ $folder }}-{{ $secret.name }}: |
