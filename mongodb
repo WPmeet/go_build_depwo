@@ -8,7 +8,30 @@ pipeline: |
       }
     }
   ]
+kafka-console-consumer \
+  --bootstrap-server <broker>:9092 \
+  --consumer.config /tmp/client.properties \
+  --topic <topic> \
+  --partition 2 \
+  --offset 24 \
+  --max-messages 1 \
+  --consumer-property value.deserializer=org.apache.kafka.common.serialization.ByteArrayDeserializer \
+  --property print.value=true \
+  --property print.key=false \
+| xxd
 
+
+kafka-console-consumer \
+  --bootstrap-server <broker>:9092 \
+  --consumer.config /tmp/client.properties \
+  --topic <topic> \
+  --partition 2 \
+  --offset 24 \
+  --max-messages 1 \
+  --consumer-property value.deserializer=org.apache.kafka.common.serialization.ByteArrayDeserializer \
+  --property print.value=true \
+  --property print.key=false \
+| xxd | tail -20
 
 {{- define "cfk.connector.source.mongodb.connection" -}}
 {{- $root := .root -}}
