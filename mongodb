@@ -105,6 +105,17 @@ vault.hashicorp.com/agent-inject-file-{{ $folder }}-{{ $secret.name }}: {{ $secr
 
 
 
+kafka-console-consumer \
+  --bootstrap-server <broker>:9092 \
+  --consumer.config /tmp/client.properties \
+  --topic <topic> \
+  --partition 2 \
+  --offset 24 \
+  --max-messages 1 \
+  --consumer-property value.deserializer=org.apache.kafka.common.serialization.ByteArrayDeserializer \
+  --property print.value=true \
+  --property print.key=false \
+| xxd | tail -20
 
 vault.hashicorp.com/secret-volume-path-{{ $folder }}-{{ $secret.name }}: /vault/secrets/connector/{{ $folder }}
 vault.hashicorp.com/agent-inject-secret-{{ $folder }}-{{ $secret.name }}: secrets/kv_v2/ctoeep/data/{{ include "cfk.namespace" $root }}/{{ $root.Values.connectClusterName }}/shared/{{ $folder }}
@@ -124,8 +135,32 @@ For the root-level pipeline option, next change to try:
 
 output.schema.infer.value: "true"
 output.format.value: "schema"
+kafka-console-consumer \
+  --bootstrap-server <broker>:9092 \
+  --consumer.config /tmp/client.properties \
+  --topic <topic> \
+  --partition 2 \
+  --offset 24 \
+  --max-messages 1 \
+  --consumer-property value.deserializer=org.apache.kafka.common.serialization.ByteArrayDeserializer \
+  --property print.value=true \
+  --property print.key=false \
+| xxd  
+
 
 and use:
+kafka-console-consumer \
+  --bootstrap-server <broker>:9092 \
+  --consumer.config /tmp/client.properties \
+  --topic <topic> \
+  --partition 2 \
+  --offset 24 \
+  --max-messages 1 \
+  --consumer-property value.deserializer=org.apache.kafka.common.serialization.ByteArrayDeserializer \
+  --property print.value=true \
+  --property print.key=false \
+| xxd | tail -20
+
 
 pipeline: |
   [
