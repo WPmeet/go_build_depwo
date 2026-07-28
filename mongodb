@@ -13,13 +13,23 @@ pipeline: |
 {{- $root := .root -}}
 {{- $connectorConfigs := .connectorConfigs | default dict -}}
 
-{{- if hasKey $root.Values.cfk.connector "source" -}}
+{{- if and
+      (hasKey $root.Values.cfk.connector "source")
+      (hasKey $root.Values.cfk.connector.source "connection")
+-}}
+
   {{- $connectionConfigs := deepCopy
         ($root.Values.cfk.connector.source.connection | default dict) -}}
 
   {{- $connectorClass := $root.Values.cfk.connectorClass | default "" -}}
 
+  {{/*
+  MongoDB:
+  Replace the default connection.uri with a URI derived from the
+  database belonging to the current connector definition.
+  */}}
   {{- if hasSuffix "MongoSourceConnector" $connectorClass -}}
+
     {{- $database := required
           "provision.configs.database is required for MongoSourceConnector"
           (get $connectorConfigs "database") -}}
@@ -29,12 +39,16 @@ pipeline: |
           $database -}}
 
     {{- $_ := set $connectionConfigs "connection.uri" $connectionUri -}}
+
+  {{/*
+  MQ and every other source connector:
+  No transformation. Render source.connection exactly as supplied.
+  */}}
   {{- end -}}
 
   {{- toYaml $connectionConfigs | nindent 4 -}}
 {{- end -}}
 {{- end -}}
-
 
 
 curl -O \
