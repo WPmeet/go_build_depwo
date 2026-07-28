@@ -8,10 +8,10 @@ pipeline: |
       }
     }
   ]
-
 {{- define "cfk.connector.source.connection" -}}
 {{- $root := .root -}}
-{{- $connectorConfigs := .connectorConfigs | default dict -}}
+{{- $provision := .connectorConfigs | default dict -}}
+{{- $connectorProvisionConfigs := get $provision "configs" | default dict -}}
 
 {{- if and
       (hasKey $root.Values.cfk.connector "source")
@@ -23,27 +23,16 @@ pipeline: |
 
   {{- $connectorClass := $root.Values.cfk.connectorClass | default "" -}}
 
-  {{/*
-  MongoDB:
-  Replace the default connection.uri with a URI derived from the
-  database belonging to the current connector definition.
-  */}}
   {{- if hasSuffix "MongoSourceConnector" $connectorClass -}}
-
     {{- $database := required
           "provision.configs.database is required for MongoSourceConnector"
-          (get $connectorConfigs "database") -}}
+          (get $connectorProvisionConfigs "database") -}}
 
     {{- $connectionUri := printf
           "${file:/vault/secrets/connector/mongodb/%s-conn-uri:mongodb-connection-uri}"
           $database -}}
 
     {{- $_ := set $connectionConfigs "connection.uri" $connectionUri -}}
-
-  {{/*
-  MQ and every other source connector:
-  No transformation. Render source.connection exactly as supplied.
-  */}}
   {{- end -}}
 
   {{- toYaml $connectionConfigs | nindent 4 -}}
