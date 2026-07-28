@@ -8,6 +8,11 @@ pipeline: |
       }
     }
   ]
+curl -O \
+  https://packages.confluent.io/bundle/cfk/confluent-for-kubernetes-3.3.0.tar.gz
+
+tar -xzf confluent-for-kubernetes-3.3.0.tar.gz
+
 
 {{- define "cfk.connector.source.connection" -}}
 {{- $root := .root -}}
