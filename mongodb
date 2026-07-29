@@ -7,7 +7,29 @@ pipeline: |
         }
       }
     }
+
+
+
   ]
+
+max_over_time(
+  (
+    timestamp(
+      kafka_log_log_logendoffset{
+        topic="edo.ansible.eos.logs.raw.public",
+        partition=~"4|9"
+      }
+    )
+    and
+    changes(
+      kafka_log_log_logendoffset{
+        topic="edo.ansible.eos.logs.raw.public",
+        partition=~"4|9"
+      }[5m]
+    ) > 0
+  )[7d:1m]
+)
+
 {{- define "cfk.connector.source.connection" -}}
 {{- $root := .root -}}
 {{- $connectorProvision := .connectorConfigs | default dict -}}
