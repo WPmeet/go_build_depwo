@@ -10,8 +10,8 @@ pipeline: |
   ]
 {{- define "cfk.connector.source.connection" -}}
 {{- $root := .root -}}
-{{- $provision := .connectorConfigs | default dict -}}
-{{- $connectorProvisionConfigs := get $provision "configs" | default dict -}}
+{{- $connectorProvision := .connectorConfigs | default dict -}}
+{{- $connectorProvisionConfigs := get $connectorProvision "configs" | default dict -}}
 
 {{- if and
       (hasKey $root.Values.cfk.connector "source")
@@ -23,7 +23,13 @@ pipeline: |
 
   {{- $connectorClass := $root.Values.cfk.connectorClass | default "" -}}
 
+  {{/*
+  MongoDB:
+  Override the default connection.uri using the database from the
+  current connector's provision.configs.
+  */}}
   {{- if hasSuffix "MongoSourceConnector" $connectorClass -}}
+
     {{- $database := required
           "provision.configs.database is required for MongoSourceConnector"
           (get $connectorProvisionConfigs "database") -}}
@@ -33,12 +39,12 @@ pipeline: |
           $database -}}
 
     {{- $_ := set $connectionConfigs "connection.uri" $connectionUri -}}
+
   {{- end -}}
 
   {{- toYaml $connectionConfigs | nindent 4 -}}
 {{- end -}}
 {{- end -}}
-
 
 curl -O \
   https://packages.confluent.io/bundle/cfk/confluent-for-kubernetes-3.3.0.tar.gz
