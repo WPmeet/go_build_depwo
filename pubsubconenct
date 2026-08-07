@@ -2,4 +2,5 @@ curl -s http://<connect-service>:8083/connector-plugins |
   jq -r '.[].class' |
   grep -i replicator
 
-  mvn org.apache.maven.plugins:maven-dependency-plugin:3.6.1:copy "-Dartifact=com.google.cloud:pubsub-group-kafka-connector:1.3.3" "-DoutputDirectory=./plugin"
+mvn org.apache.maven.plugins:maven-dependency-plugin:3.6.1:copy "-Dartifact=com.google.cloud:pubsub-group-kafka-connector:1.3.3" "-DoutputDirectory=./plugin"
+mvn org.apache.maven.plugins:maven-dependency-plugin:3.6.1:copy "-Dartifact=com.google.cloud:pubsub-group-kafka-connector:1.3.3" "-DoutputDirectory=./plugin"
