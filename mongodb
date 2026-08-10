@@ -11,7 +11,7 @@ pipeline: |
 
 
   ]\\
-
+mvn help:evaluate "-Dexpression=settings.localRepository" -q -DforceStdout
 Get-ChildItem "$HOME\.m2\repository\org\apache\maven\plugins\maven-dependency-plugin"
 Get-ChildItem "$HOME\.m2\repository\org\codehaus\plexus\plexus-archiver"
 
