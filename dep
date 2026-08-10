@@ -1,119 +1,40 @@
-$ErrorActionPreference = "Stop"
-
-# ==========================================
-# CONFIG
-# ==========================================
-
-$Repo = "https://digitalnexus02.systems.uk.hsbc:8081/nexus/repository/maven-group"
-
-$OutputDir = ".\pubsub-group-kafka-connector\lib"
-
-New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
-
-# ==========================================
-# NEXUS CREDS
-# ==========================================
-
-$Username = "YOUR_NEXUS_USERNAME"
-$Password = Read-Host "Enter Nexus password" -AsSecureString
-
-$Credential = New-Object `
-    System.Management.Automation.PSCredential(
-        $Username,
-        $Password
-    )
-
-# ==========================================
-# STATIC JAR ARRAY
-# groupId | artifactId | version
-# ==========================================
-
 $Dependencies = @(
 
-    # Pub/Sub / Pub/Sub Lite
-    @("com.google.api.grpc", "proto-google-cloud-pubsublite-v1", "TODO"),
-    @("com.google.cloud", "google-cloud-pubsublite", "TODO"),
-    @("com.google.cloud", "pubsublite-kafka", "2.3.3"),
-    @("com.google.cloud", "google-cloud-pubsub", "TODO"),
+    # Pub/Sub Lite
+    @("com.google.api.grpc", "proto-google-cloud-pubsublite-v1", "1.15.19"),
+    @("com.google.cloud", "google-cloud-pubsublite", "1.15.19"),
+    @("com.google.cloud", "pubsublite-kafka", "1.2.3"),
 
-    # Protobuf
-    @("com.google.protobuf", "protobuf-java", "TODO"),
-    @("com.google.protobuf", "protobuf-java-util", "TODO"),
+    # Pub/Sub
+    @("com.google.cloud", "google-cloud-pubsub", "1.143.1"),
+    @("com.google.api.grpc", "proto-google-cloud-pubsub-v1", "1.143.1"),
+
+    # Kafka client used directly by connector
+    @("org.apache.kafka", "kafka-clients", "3.9.1"),
 
     # Google API / GAX
-    @("com.google.api", "gax", "TODO"),
-    @("com.google.api", "gax-grpc", "TODO"),
-    @("com.google.api", "api-common", "TODO"),
+    @("com.google.api", "gax", "2.72.1"),
+    @("com.google.api", "gax-grpc", "2.72.1"),
+    @("com.google.api", "api-common", "2.55.1"),
 
-    # gRPC
-    @("io.grpc", "grpc-api", "TODO"),
+    # Protobuf
+    @("com.google.protobuf", "protobuf-java", "4.33.0"),
+    @("com.google.protobuf", "protobuf-java-util", "4.33.0"),
 
-    # Authentication
-    @("com.google.auth", "google-auth-library-credentials", "TODO"),
-    @("com.google.auth", "google-auth-library-oauth2-http", "TODO"),
+    # Google Auth
+    @("com.google.auth", "google-auth-library-credentials", "1.39.1"),
+    @("com.google.auth", "google-auth-library-oauth2-http", "1.39.1"),
 
-    # Utility libraries
-    @("com.google.guava", "guava", "TODO"),
-    @("org.threeten", "threetenbp", "TODO"),
-    @("com.google.errorprone", "error_prone_annotations", "TODO"),
+    # Guava
+    @("com.google.guava", "guava", "33.4.8-jre"),
+    @("com.google.guava", "failureaccess", "1.0.3"),
+
+    # Misc Google/runtime
+    @("com.google.code.findbugs", "jsr305", "3.0.2"),
+    @("com.google.flogger", "google-extensions", "0.8"),
+    @("org.threeten", "threetenbp", "1.7.1"),
+    @("com.google.errorprone", "error_prone_annotations", "2.41.0"),
 
     # Logging
-    @("org.slf4j", "slf4j-api", "2.0.17"),
-
-    # Google logging/extensions
-    @("com.google.flogger", "google-extensions", "0.8")
-
+    @("org.slf4j", "slf4j-api", "2.0.17")
 )
-
-# ==========================================
-# DOWNLOAD
-# ==========================================
-
-foreach ($Dependency in $Dependencies) {
-
-    $Group    = $Dependency[0]
-    $Artifact = $Dependency[1]
-    $Version  = $Dependency[2]
-
-    if ($Version -eq "TODO") {
-        Write-Warning "VERSION NEEDED: $Group`:$Artifact"
-        continue
-    }
-
-    $GroupPath = $Group.Replace(".", "/")
-
-    $JarName = "$Artifact-$Version.jar"
-
-    $Url =
-        "$Repo/$GroupPath/$Artifact/$Version/$JarName"
-
-    $Destination =
-        Join-Path $OutputDir $JarName
-
-    Write-Host ""
-    Write-Host "[JAR] $Group`:$Artifact`:$Version" -ForegroundColor Cyan
-
-    try {
-
-        Invoke-WebRequest `
-            -Uri $Url `
-            -OutFile $Destination `
-            -Credential $Credential
-
-        Write-Host "Downloaded -> $JarName" -ForegroundColor Green
-
-    }
-    catch {
-
-        Write-Warning "FAILED: $Group`:$Artifact`:$Version"
-    }
-}
-
-Write-Host ""
-Write-Host "============================="
-Write-Host "FINISHED"
-Write-Host "============================="
-
-Get-ChildItem $OutputDir -Filter "*.jar" |
-    Sort-Object Name |
-    Select-Object Name
