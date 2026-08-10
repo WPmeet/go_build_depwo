@@ -90,13 +90,12 @@ function Get-NamespaceManager {
 # ============================================================
 # READ XML NODE TEXT
 # ============================================================
-
 function Get-NodeText {
 
     param(
         [System.Xml.XmlNode]$Node,
         [string]$XPath,
-        [System.Xml.XmlNamespaceManager]$Ns
+        $Ns
     )
 
     $Result = $Node.SelectSingleNode($XPath, $Ns)
