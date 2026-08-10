@@ -1,23 +1,333 @@
-$repo = "https://digitalnexus02.systems.uk.hsbc:8081/nexus/repository/maven-group"
-$out  = ".\pubsub-lib"
+$ErrorActionPreference = "Stop"
 
-New-Item -ItemType Directory -Force -Path $out
+# -----------------------------
+# CONFIG
+# -----------------------------
+$Repo = "https://digitalnexus02.systems.uk.hsbc:8081/nexus/repository/maven-group"
 
-function Get-MavenJar {
-    param(
+$RootGroup    = "com.google.cloud"
+$RootArtifact = "pubsub-group-kafka-connector"
+$RootVersion  = "1.3.3"
+
+$OutputRoot = ".\pubsub-group-kafka-connector"
+$LibDir     = Join-Path $OutputRoot "lib"
+$PomCache   = Join-Path $OutputRoot "_pom-cache"
+
+New-Item -ItemType Directory -Force -Path $LibDir   | Out-Null
+New-Item -ItemType Directory -Force -Path $PomCache | Out-Null
+
+
+# -----------------------------
+# AUTH
+# -----------------------------
+# Option A:
+# If Nexus accepts Windows/SSO credentials leave this as $true.
+$UseDefaultCredentials = $true
+
+# Option B:
+# If Nexus requires username/password:
+# $UseDefaultCredentials = $false
+# $Username = "YOUR_USERNAME"
+# $Password = Read-Host "Nexus password" -AsSecureString
+# $Credential = New-Object System.Management.Automation.PSCredential($Username, $Password)
+
+
+function Invoke-NexusDownload {
+    param (
+        [string]$Url,
+        [string]$OutFile
+    )
+
+    Write-Host "GET $Url"
+
+    if ($UseDefaultCredentials) {
+        Invoke-WebRequest `
+            -Uri $Url `
+            -OutFile $OutFile `
+            -UseDefaultCredentials
+    }
+    else {
+        Invoke-WebRequest `
+            -Uri $Url `
+            -OutFile $OutFile `
+            -Credential $Credential
+    }
+}
+
+
+function Get-MavenPath {
+    param (
         [string]$Group,
         [string]$Artifact,
         [string]$Version
     )
 
-    $groupPath = $Group.Replace(".", "/")
-
-    $url = "$repo/$groupPath/$Artifact/$Version/$Artifact-$Version.jar"
-
-    Write-Host "Downloading $Artifact $Version"
-
-    Invoke-WebRequest `
-        -Uri $url `
-        -OutFile "$out\$Artifact-$Version.jar" `
-        -UseDefaultCredentials
+    $GroupPath = $Group.Replace(".", "/")
+    return "$GroupPath/$Artifact/$Version"
 }
+
+
+function Resolve-Property {
+    param (
+        [string]$Value,
+        [hashtable]$Properties
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return $Value
+    }
+
+    $result = $Value
+
+    for ($i = 0; $i -lt 20; $i++) {
+
+        if ($result -notmatch '\$\{([^}]+)\}') {
+            break
+        }
+
+        $propertyName = $Matches[1]
+
+        if (-not $Properties.ContainsKey($propertyName)) {
+            break
+        }
+
+        $replacement = [string]$Properties[$propertyName]
+
+        $result = $result.Replace(
+            '${' + $propertyName + '}',
+            $replacement
+        )
+    }
+
+    return $result
+}
+
+
+$Resolved = @{}
+$DependencyManagement = @{}
+$GlobalProperties = @{}
+
+
+function Process-Pom {
+    param (
+        [string]$Group,
+        [string]$Artifact,
+        [string]$Version
+    )
+
+    $Key = "$Group`:$Artifact`:$Version"
+
+    if ($Resolved.ContainsKey($Key)) {
+        return
+    }
+
+    $Resolved[$Key] = $true
+
+    Write-Host ""
+    Write-Host "Processing $Key" -ForegroundColor Cyan
+
+    $Path = Get-MavenPath $Group $Artifact $Version
+
+    $PomUrl = "$Repo/$Path/$Artifact-$Version.pom"
+
+    $SafeName = ($Key -replace '[:.]','_')
+    $PomFile = Join-Path $PomCache "$SafeName.pom"
+
+    try {
+        Invoke-NexusDownload $PomUrl $PomFile
+    }
+    catch {
+        Write-Warning "Could not download POM: $Key"
+        return
+    }
+
+    [xml]$Pom = Get-Content $PomFile
+
+    $Project = $Pom.project
+
+    # ----------------------------------
+    # Basic Maven properties
+    # ----------------------------------
+    $Properties = @{}
+
+    foreach ($k in $GlobalProperties.Keys) {
+        $Properties[$k] = $GlobalProperties[$k]
+    }
+
+    $Properties["project.groupId"]    = $Group
+    $Properties["project.artifactId"] = $Artifact
+    $Properties["project.version"]    = $Version
+
+    $Properties["pom.groupId"]    = $Group
+    $Properties["pom.artifactId"] = $Artifact
+    $Properties["pom.version"]    = $Version
+
+    if ($Project.properties) {
+        foreach ($prop in $Project.properties.ChildNodes) {
+            if ($prop.NodeType -eq "Element") {
+                $Properties[$prop.Name] = $prop.InnerText.Trim()
+            }
+        }
+    }
+
+    # ----------------------------------
+    # Parent
+    # ----------------------------------
+    if ($Project.parent) {
+
+        $ParentGroup    = [string]$Project.parent.groupId
+        $ParentArtifact = [string]$Project.parent.artifactId
+        $ParentVersion  = [string]$Project.parent.version
+
+        if ($ParentGroup -and $ParentArtifact -and $ParentVersion) {
+            Process-Pom `
+                $ParentGroup `
+                $ParentArtifact `
+                $ParentVersion
+        }
+    }
+
+    # ----------------------------------
+    # dependencyManagement
+    # ----------------------------------
+    $ManagedDependencies = $Project.dependencyManagement.dependencies.dependency
+
+    foreach ($Dep in $ManagedDependencies) {
+
+        $DG = Resolve-Property ([string]$Dep.groupId)    $Properties
+        $DA = Resolve-Property ([string]$Dep.artifactId) $Properties
+        $DV = Resolve-Property ([string]$Dep.version)    $Properties
+
+        $Type  = [string]$Dep.type
+        $Scope = [string]$Dep.scope
+
+        if (-not $Type) {
+            $Type = "jar"
+        }
+
+        # BOM import
+        if ($Type -eq "pom" -and $Scope -eq "import") {
+
+            if ($DG -and $DA -and $DV) {
+                Process-Pom $DG $DA $DV
+            }
+
+            continue
+        }
+
+        if ($DG -and $DA -and $DV) {
+            $DependencyManagement["$DG`:$DA"] = $DV
+        }
+    }
+
+    # ----------------------------------
+    # Runtime dependencies
+    # ----------------------------------
+    foreach ($Dep in $Project.dependencies.dependency) {
+
+        $DG = Resolve-Property ([string]$Dep.groupId)    $Properties
+        $DA = Resolve-Property ([string]$Dep.artifactId) $Properties
+        $DV = Resolve-Property ([string]$Dep.version)    $Properties
+
+        $Scope    = [string]$Dep.scope
+        $Optional = [string]$Dep.optional
+        $Type     = [string]$Dep.type
+
+        if (-not $Scope) {
+            $Scope = "compile"
+        }
+
+        if (-not $Type) {
+            $Type = "jar"
+        }
+
+        # Exclude things that should not be packaged
+        if ($Scope -in @(
+            "test",
+            "provided",
+            "system"
+        )) {
+            continue
+        }
+
+        if ($Optional -eq "true") {
+            continue
+        }
+
+        if ($Type -ne "jar") {
+            continue
+        }
+
+        # Resolve managed version
+        if (-not $DV) {
+            $ManagedKey = "$DG`:$DA"
+
+            if ($DependencyManagement.ContainsKey($ManagedKey)) {
+                $DV = $DependencyManagement[$ManagedKey]
+            }
+        }
+
+        $DV = Resolve-Property $DV $Properties
+
+        if (-not $DG -or -not $DA -or -not $DV) {
+            Write-Warning "Could not resolve dependency: $DG : $DA : $DV"
+            continue
+        }
+
+        $DepKey = "$DG`:$DA`:$DV"
+
+        Write-Host "Runtime dependency -> $DepKey"
+
+        # ----------------------------------
+        # Download JAR
+        # ----------------------------------
+        $DepPath = Get-MavenPath $DG $DA $DV
+
+        $JarUrl =
+            "$Repo/$DepPath/$DA-$DV.jar"
+
+        $JarFile =
+            Join-Path $LibDir "$DA-$DV.jar"
+
+        if (-not (Test-Path $JarFile)) {
+
+            try {
+                Invoke-NexusDownload `
+                    $JarUrl `
+                    $JarFile
+            }
+            catch {
+                Write-Warning "Could not download JAR: $DepKey"
+            }
+        }
+
+        # Recurse
+        Process-Pom `
+            $DG `
+            $DA `
+            $DV
+    }
+}
+
+
+# -----------------------------
+# START
+# -----------------------------
+
+Process-Pom `
+    $RootGroup `
+    $RootArtifact `
+    $RootVersion
+
+
+Write-Host ""
+Write-Host "==========================================="
+Write-Host "Finished"
+Write-Host "==========================================="
+
+$JarCount = (
+    Get-ChildItem $LibDir -Filter "*.jar"
+).Count
+
+Write-Host "Downloaded JARs: $JarCount"
+Write-Host "Location: $LibDir"
