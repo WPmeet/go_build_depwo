@@ -11,6 +11,29 @@ pipeline: |
 
 
   ]
+
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>local</groupId>
+    <artifactId>pubsub-connector-download</artifactId>
+    <version>1.0</version>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.google.cloud</groupId>
+            <artifactId>pubsub-group-kafka-connector</artifactId>
+            <version>1.3.3</version>
+        </dependency>
+    </dependencies>
+
+</project>
+
 1785329828926 → 29/07/2026 12:57:08.926
 1785329835148 → 29/07/2026 12:57:15.148
 1000 *
