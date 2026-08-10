@@ -10,7 +10,10 @@ pipeline: |
 
 
 
-  ]
+  ]\\
+
+Get-ChildItem "$HOME\.m2\repository\org\apache\maven\plugins\maven-dependency-plugin"
+Get-ChildItem "$HOME\.m2\repository\org\codehaus\plexus\plexus-archiver"
 
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
