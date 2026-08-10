@@ -1,0 +1,23 @@
+$repo = "https://digitalnexus02.systems.uk.hsbc:8081/nexus/repository/maven-group"
+$out  = ".\pubsub-lib"
+
+New-Item -ItemType Directory -Force -Path $out
+
+function Get-MavenJar {
+    param(
+        [string]$Group,
+        [string]$Artifact,
+        [string]$Version
+    )
+
+    $groupPath = $Group.Replace(".", "/")
+
+    $url = "$repo/$groupPath/$Artifact/$Version/$Artifact-$Version.jar"
+
+    Write-Host "Downloading $Artifact $Version"
+
+    Invoke-WebRequest `
+        -Uri $url `
+        -OutFile "$out\$Artifact-$Version.jar" `
+        -UseDefaultCredentials
+}
