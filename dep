@@ -1,76 +1,88 @@
 $ErrorActionPreference = "Stop"
 
-# -----------------------------
-# CONFIG
-# -----------------------------
+# ============================================================
+# CONFIGURATION
+# ============================================================
+
+# Your corporate Nexus Maven repository
 $Repo = "https://digitalnexus02.systems.uk.hsbc:8081/nexus/repository/maven-group"
 
+# Connector we want to resolve
 $RootGroup    = "com.google.cloud"
 $RootArtifact = "pubsub-group-kafka-connector"
 $RootVersion  = "1.3.3"
 
+# Output
 $OutputRoot = ".\pubsub-group-kafka-connector"
 $LibDir     = Join-Path $OutputRoot "lib"
 $PomCache   = Join-Path $OutputRoot "_pom-cache"
 
-New-Item -ItemType Directory -Force -Path $LibDir   | Out-Null
-New-Item -ItemType Directory -Force -Path $PomCache | Out-Null
+New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
+New-Item -ItemType Directory -Force -Path $LibDir     | Out-Null
+New-Item -ItemType Directory -Force -Path $PomCache   | Out-Null
 
 
-# -----------------------------
-# AUTH
-# -----------------------------
-# Option A:
-# If Nexus accepts Windows/SSO credentials leave this as $true.
-$UseDefaultCredentials = $true
+# ============================================================
+# NEXUS CREDENTIALS
+# ============================================================
 
-# Option B:
-# If Nexus requires username/password:
-# $UseDefaultCredentials = $false
-# $Username = "YOUR_USERNAME"
-# $Password = Read-Host "Nexus password" -AsSecureString
-# $Credential = New-Object System.Management.Automation.PSCredential($Username, $Password)
+# CHANGE THIS to the same Nexus username used in settings.xml
+$Username = "YOUR_NEXUS_USERNAME"
 
+# Password will be requested when script starts.
+# Nothing is saved in this file.
+$Password = Read-Host "Enter Nexus password" -AsSecureString
+
+$Credential = New-Object `
+    System.Management.Automation.PSCredential(
+        $Username,
+        $Password
+    )
+
+
+# ============================================================
+# STATE
+# ============================================================
+
+$Processed = @{}
+$ManagedVersions = @{}
+
+
+# ============================================================
+# DOWNLOAD FROM NEXUS
+# ============================================================
 
 function Invoke-NexusDownload {
-    param (
+
+    param(
         [string]$Url,
         [string]$OutFile
     )
 
-    Write-Host "GET $Url"
+    if (Test-Path $OutFile) {
+        Write-Host "[CACHE] $OutFile" -ForegroundColor DarkGray
+        return
+    }
 
-    if ($UseDefaultCredentials) {
-        Invoke-WebRequest `
-            -Uri $Url `
-            -OutFile $OutFile `
-            -UseDefaultCredentials
-    }
-    else {
-        Invoke-WebRequest `
-            -Uri $Url `
-            -OutFile $OutFile `
-            -Credential $Credential
-    }
+    Write-Host "[GET] $Url"
+
+    Invoke-WebRequest `
+        -Uri $Url `
+        -OutFile $OutFile `
+        -Credential $Credential
 }
 
 
-function Get-MavenPath {
-    param (
-        [string]$Group,
-        [string]$Artifact,
-        [string]$Version
-    )
+# ============================================================
+# PROPERTY RESOLUTION
+# e.g. ${grpc.version}
+# ============================================================
 
-    $GroupPath = $Group.Replace(".", "/")
-    return "$GroupPath/$Artifact/$Version"
-}
+function Resolve-Value {
 
-
-function Resolve-Property {
-    param (
+    param(
         [string]$Value,
-        [hashtable]$Properties
+        [hashtable]$Props
     )
 
     if ([string]::IsNullOrWhiteSpace($Value)) {
@@ -79,7 +91,7 @@ function Resolve-Property {
 
     $result = $Value
 
-    for ($i = 0; $i -lt 20; $i++) {
+    for ($i = 0; $i -lt 30; $i++) {
 
         if ($result -notmatch '\$\{([^}]+)\}') {
             break
@@ -87,11 +99,11 @@ function Resolve-Property {
 
         $propertyName = $Matches[1]
 
-        if (-not $Properties.ContainsKey($propertyName)) {
+        if (-not $Props.ContainsKey($propertyName)) {
             break
         }
 
-        $replacement = [string]$Properties[$propertyName]
+        $replacement = [string]$Props[$propertyName]
 
         $result = $result.Replace(
             '${' + $propertyName + '}',
@@ -103,135 +115,350 @@ function Resolve-Property {
 }
 
 
-$Resolved = @{}
-$DependencyManagement = @{}
-$GlobalProperties = @{}
+# ============================================================
+# GET POM
+# ============================================================
 
+function Get-Pom {
 
-function Process-Pom {
-    param (
+    param(
         [string]$Group,
         [string]$Artifact,
         [string]$Version
     )
 
-    $Key = "$Group`:$Artifact`:$Version"
+    $GroupPath = $Group.Replace(".", "/")
 
-    if ($Resolved.ContainsKey($Key)) {
-        return
-    }
+    $SafeName = "$Group-$Artifact-$Version" `
+        -replace '[^\w\-\.]', '_'
 
-    $Resolved[$Key] = $true
-
-    Write-Host ""
-    Write-Host "Processing $Key" -ForegroundColor Cyan
-
-    $Path = Get-MavenPath $Group $Artifact $Version
-
-    $PomUrl = "$Repo/$Path/$Artifact-$Version.pom"
-
-    $SafeName = ($Key -replace '[:.]','_')
     $PomFile = Join-Path $PomCache "$SafeName.pom"
 
-    try {
-        Invoke-NexusDownload $PomUrl $PomFile
-    }
-    catch {
-        Write-Warning "Could not download POM: $Key"
-        return
-    }
+    $PomUrl =
+        "$Repo/$GroupPath/$Artifact/$Version/$Artifact-$Version.pom"
 
-    [xml]$Pom = Get-Content $PomFile
+    Invoke-NexusDownload `
+        -Url $PomUrl `
+        -OutFile $PomFile
 
-    $Project = $Pom.project
+    return [xml](Get-Content $PomFile -Raw)
+}
 
-    # ----------------------------------
-    # Basic Maven properties
-    # ----------------------------------
-    $Properties = @{}
 
-    foreach ($k in $GlobalProperties.Keys) {
-        $Properties[$k] = $GlobalProperties[$k]
-    }
+# ============================================================
+# READ PROPERTIES FROM POM
+# ============================================================
 
-    $Properties["project.groupId"]    = $Group
-    $Properties["project.artifactId"] = $Artifact
-    $Properties["project.version"]    = $Version
+function Add-PomProperties {
 
-    $Properties["pom.groupId"]    = $Group
-    $Properties["pom.artifactId"] = $Artifact
-    $Properties["pom.version"]    = $Version
+    param(
+        [xml]$Pom,
+        [hashtable]$Props
+    )
 
-    if ($Project.properties) {
-        foreach ($prop in $Project.properties.ChildNodes) {
-            if ($prop.NodeType -eq "Element") {
-                $Properties[$prop.Name] = $prop.InnerText.Trim()
+    if ($Pom.project.properties) {
+
+        foreach ($Property in $Pom.project.properties.ChildNodes) {
+
+            if ($Property.NodeType -eq "Element") {
+
+                $Props[$Property.Name] =
+                    $Property.InnerText.Trim()
             }
         }
     }
+}
 
-    # ----------------------------------
-    # Parent
-    # ----------------------------------
-    if ($Project.parent) {
 
-        $ParentGroup    = [string]$Project.parent.groupId
-        $ParentArtifact = [string]$Project.parent.artifactId
-        $ParentVersion  = [string]$Project.parent.version
+# ============================================================
+# IMPORT DEPENDENCY MANAGEMENT / BOM
+# ============================================================
 
-        if ($ParentGroup -and $ParentArtifact -and $ParentVersion) {
-            Process-Pom `
-                $ParentGroup `
-                $ParentArtifact `
-                $ParentVersion
-        }
+function Import-DependencyManagement {
+
+    param(
+        [xml]$Pom,
+        [hashtable]$Props
+    )
+
+    if (-not $Pom.project.dependencyManagement) {
+        return
     }
 
-    # ----------------------------------
-    # dependencyManagement
-    # ----------------------------------
-    $ManagedDependencies = $Project.dependencyManagement.dependencies.dependency
+    $Dependencies =
+        $Pom.project.dependencyManagement.dependencies.dependency
 
-    foreach ($Dep in $ManagedDependencies) {
+    foreach ($Dependency in $Dependencies) {
 
-        $DG = Resolve-Property ([string]$Dep.groupId)    $Properties
-        $DA = Resolve-Property ([string]$Dep.artifactId) $Properties
-        $DV = Resolve-Property ([string]$Dep.version)    $Properties
+        $Group =
+            Resolve-Value ([string]$Dependency.groupId) $Props
 
-        $Type  = [string]$Dep.type
-        $Scope = [string]$Dep.scope
+        $Artifact =
+            Resolve-Value ([string]$Dependency.artifactId) $Props
+
+        $Version =
+            Resolve-Value ([string]$Dependency.version) $Props
+
+        $Type  = [string]$Dependency.type
+        $Scope = [string]$Dependency.scope
 
         if (-not $Type) {
             $Type = "jar"
         }
 
-        # BOM import
+
+        # ----------------------------------------------------
+        # Imported Maven BOM
+        # ----------------------------------------------------
+
         if ($Type -eq "pom" -and $Scope -eq "import") {
 
-            if ($DG -and $DA -and $DV) {
-                Process-Pom $DG $DA $DV
+            if ($Group -and $Artifact -and $Version) {
+
+                Write-Host `
+                    "[BOM] $Group`:$Artifact`:$Version" `
+                    -ForegroundColor Yellow
+
+                try {
+
+                    $BomPom =
+                        Get-Pom `
+                            $Group `
+                            $Artifact `
+                            $Version
+
+                    $BomProps = @{}
+
+                    foreach ($Key in $Props.Keys) {
+                        $BomProps[$Key] = $Props[$Key]
+                    }
+
+                    Add-PomProperties `
+                        $BomPom `
+                        $BomProps
+
+                    Import-DependencyManagement `
+                        $BomPom `
+                        $BomProps
+                }
+                catch {
+
+                    Write-Warning `
+                        "Unable to process BOM: $Group`:$Artifact`:$Version"
+                }
             }
 
             continue
         }
 
-        if ($DG -and $DA -and $DV) {
-            $DependencyManagement["$DG`:$DA"] = $DV
+
+        # ----------------------------------------------------
+        # Normal managed dependency
+        # ----------------------------------------------------
+
+        if ($Group -and $Artifact -and $Version) {
+
+            $Key = "$Group`:$Artifact"
+
+            $ManagedVersions[$Key] = $Version
+        }
+    }
+}
+
+
+# ============================================================
+# PROCESS ARTIFACT
+# ============================================================
+
+function Process-Artifact {
+
+    param(
+        [string]$Group,
+        [string]$Artifact,
+        [string]$Version,
+        [bool]$DownloadJar = $true
+    )
+
+    $Key = "$Group`:$Artifact`:$Version"
+
+    if ($Processed.ContainsKey($Key)) {
+        return
+    }
+
+    $Processed[$Key] = $true
+
+    Write-Host ""
+    Write-Host "==========================================" `
+        -ForegroundColor Cyan
+
+    Write-Host "Processing $Key" `
+        -ForegroundColor Cyan
+
+    Write-Host "==========================================" `
+        -ForegroundColor Cyan
+
+
+    # --------------------------------------------------------
+    # GET POM
+    # --------------------------------------------------------
+
+    try {
+
+        $Pom =
+            Get-Pom `
+                $Group `
+                $Artifact `
+                $Version
+    }
+    catch {
+
+        Write-Warning "Could not download POM: $Key"
+        return
+    }
+
+
+    # --------------------------------------------------------
+    # LOCAL PROPERTY MAP
+    # --------------------------------------------------------
+
+    $Props = @{
+
+        "project.groupId"    = $Group
+        "project.artifactId" = $Artifact
+        "project.version"    = $Version
+
+        "pom.groupId"        = $Group
+        "pom.artifactId"     = $Artifact
+        "pom.version"        = $Version
+    }
+
+    Add-PomProperties `
+        $Pom `
+        $Props
+
+
+    # --------------------------------------------------------
+    # PARENT POM
+    # --------------------------------------------------------
+
+    if ($Pom.project.parent) {
+
+        $ParentGroup =
+            Resolve-Value `
+                ([string]$Pom.project.parent.groupId) `
+                $Props
+
+        $ParentArtifact =
+            Resolve-Value `
+                ([string]$Pom.project.parent.artifactId) `
+                $Props
+
+        $ParentVersion =
+            Resolve-Value `
+                ([string]$Pom.project.parent.version) `
+                $Props
+
+        if (
+            $ParentGroup -and
+            $ParentArtifact -and
+            $ParentVersion
+        ) {
+
+            Write-Host `
+                "[PARENT] $ParentGroup`:$ParentArtifact`:$ParentVersion" `
+                -ForegroundColor DarkYellow
+
+            try {
+
+                $ParentPom =
+                    Get-Pom `
+                        $ParentGroup `
+                        $ParentArtifact `
+                        $ParentVersion
+
+                Add-PomProperties `
+                    $ParentPom `
+                    $Props
+
+                Import-DependencyManagement `
+                    $ParentPom `
+                    $Props
+            }
+            catch {
+
+                Write-Warning `
+                    "Unable to process parent POM: $ParentGroup`:$ParentArtifact`:$ParentVersion"
+            }
         }
     }
 
-    # ----------------------------------
-    # Runtime dependencies
-    # ----------------------------------
-    foreach ($Dep in $Project.dependencies.dependency) {
 
-        $DG = Resolve-Property ([string]$Dep.groupId)    $Properties
-        $DA = Resolve-Property ([string]$Dep.artifactId) $Properties
-        $DV = Resolve-Property ([string]$Dep.version)    $Properties
+    # --------------------------------------------------------
+    # CURRENT POM DEPENDENCY MANAGEMENT
+    # --------------------------------------------------------
 
-        $Scope    = [string]$Dep.scope
-        $Optional = [string]$Dep.optional
-        $Type     = [string]$Dep.type
+    Import-DependencyManagement `
+        $Pom `
+        $Props
+
+
+    # --------------------------------------------------------
+    # DOWNLOAD THIS ARTIFACT JAR
+    # --------------------------------------------------------
+
+    if ($DownloadJar) {
+
+        $GroupPath = $Group.Replace(".", "/")
+
+        $JarName =
+            "$Artifact-$Version.jar"
+
+        $JarUrl =
+            "$Repo/$GroupPath/$Artifact/$Version/$JarName"
+
+        $JarFile =
+            Join-Path $LibDir $JarName
+
+        try {
+
+            Invoke-NexusDownload `
+                -Url $JarUrl `
+                -OutFile $JarFile
+
+            Write-Host `
+                "[JAR] $Key" `
+                -ForegroundColor Green
+        }
+        catch {
+
+            Write-Warning `
+                "Could not download JAR: $Key"
+        }
+    }
+
+
+    # --------------------------------------------------------
+    # PROCESS DEPENDENCIES
+    # --------------------------------------------------------
+
+    if (-not $Pom.project.dependencies) {
+        return
+    }
+
+    foreach (
+        $Dependency in
+        $Pom.project.dependencies.dependency
+    ) {
+
+        $Scope =
+            [string]$Dependency.scope
+
+        $Optional =
+            [string]$Dependency.optional
+
+        $Type =
+            [string]$Dependency.type
+
 
         if (-not $Scope) {
             $Scope = "compile"
@@ -241,93 +468,160 @@ function Process-Pom {
             $Type = "jar"
         }
 
-        # Exclude things that should not be packaged
-        if ($Scope -in @(
-            "test",
-            "provided",
-            "system"
-        )) {
+
+        # ----------------------------------------------------
+        # DO NOT PACKAGE THESE
+        # ----------------------------------------------------
+
+        if (
+            $Scope -in @(
+                "test",
+                "provided",
+                "system"
+            )
+        ) {
+
+            Write-Host `
+                "[SKIP:$Scope] $($Dependency.groupId):$($Dependency.artifactId)" `
+                -ForegroundColor DarkGray
+
             continue
         }
 
+
         if ($Optional -eq "true") {
+
+            Write-Host `
+                "[SKIP:optional] $($Dependency.groupId):$($Dependency.artifactId)" `
+                -ForegroundColor DarkGray
+
             continue
         }
+
 
         if ($Type -ne "jar") {
             continue
         }
 
-        # Resolve managed version
-        if (-not $DV) {
-            $ManagedKey = "$DG`:$DA"
 
-            if ($DependencyManagement.ContainsKey($ManagedKey)) {
-                $DV = $DependencyManagement[$ManagedKey]
+        # ----------------------------------------------------
+        # RESOLVE COORDINATES
+        # ----------------------------------------------------
+
+        $DepGroup =
+            Resolve-Value `
+                ([string]$Dependency.groupId) `
+                $Props
+
+        $DepArtifact =
+            Resolve-Value `
+                ([string]$Dependency.artifactId) `
+                $Props
+
+        $DepVersion =
+            Resolve-Value `
+                ([string]$Dependency.version) `
+                $Props
+
+
+        # ----------------------------------------------------
+        # VERSION FROM dependencyManagement/BOM
+        # ----------------------------------------------------
+
+        if (-not $DepVersion) {
+
+            $ManagedKey =
+                "$DepGroup`:$DepArtifact"
+
+            if (
+                $ManagedVersions.ContainsKey(
+                    $ManagedKey
+                )
+            ) {
+
+                $DepVersion =
+                    Resolve-Value `
+                        $ManagedVersions[$ManagedKey] `
+                        $Props
             }
         }
 
-        $DV = Resolve-Property $DV $Properties
 
-        if (-not $DG -or -not $DA -or -not $DV) {
-            Write-Warning "Could not resolve dependency: $DG : $DA : $DV"
+        # ----------------------------------------------------
+        # VALIDATE
+        # ----------------------------------------------------
+
+        if (
+            -not $DepGroup -or
+            -not $DepArtifact -or
+            -not $DepVersion
+        ) {
+
+            Write-Warning `
+                "UNRESOLVED: $DepGroup : $DepArtifact : $DepVersion"
+
             continue
         }
 
-        $DepKey = "$DG`:$DA`:$DV"
 
-        Write-Host "Runtime dependency -> $DepKey"
+        Write-Host `
+            "[DEPENDENCY] $DepGroup`:$DepArtifact`:$DepVersion"
 
-        # ----------------------------------
-        # Download JAR
-        # ----------------------------------
-        $DepPath = Get-MavenPath $DG $DA $DV
 
-        $JarUrl =
-            "$Repo/$DepPath/$DA-$DV.jar"
+        # ----------------------------------------------------
+        # RECURSE
+        # ----------------------------------------------------
 
-        $JarFile =
-            Join-Path $LibDir "$DA-$DV.jar"
-
-        if (-not (Test-Path $JarFile)) {
-
-            try {
-                Invoke-NexusDownload `
-                    $JarUrl `
-                    $JarFile
-            }
-            catch {
-                Write-Warning "Could not download JAR: $DepKey"
-            }
-        }
-
-        # Recurse
-        Process-Pom `
-            $DG `
-            $DA `
-            $DV
+        Process-Artifact `
+            $DepGroup `
+            $DepArtifact `
+            $DepVersion `
+            $true
     }
 }
 
 
-# -----------------------------
-# START
-# -----------------------------
+# ============================================================
+# START FROM GOOGLE PUBSUB CONNECTOR
+# ============================================================
 
-Process-Pom `
+Write-Host ""
+Write-Host "Starting Pub/Sub connector dependency download..." `
+    -ForegroundColor Cyan
+
+Process-Artifact `
     $RootGroup `
     $RootArtifact `
-    $RootVersion
+    $RootVersion `
+    $true
+
+
+# ============================================================
+# RESULTS
+# ============================================================
+
+Write-Host ""
+Write-Host "==========================================" `
+    -ForegroundColor Cyan
+
+Write-Host "DOWNLOAD FINISHED" `
+    -ForegroundColor Cyan
+
+Write-Host "==========================================" `
+    -ForegroundColor Cyan
+
+
+$Jars =
+    Get-ChildItem `
+        $LibDir `
+        -Filter "*.jar"
 
 
 Write-Host ""
-Write-Host "==========================================="
-Write-Host "Finished"
-Write-Host "==========================================="
+Write-Host "Downloaded JARs: $($Jars.Count)"
+Write-Host "Directory: $LibDir"
+Write-Host ""
 
-$JarCount = (
-    Get-ChildItem $LibDir -Filter "*.jar"
-).Count
-
-Write-Host "Downloaded JARs: $JarCount"
-Write-Host "Location: $LibDir"
+$Jars |
+    Sort-Object Name |
+    Select-Object Name
