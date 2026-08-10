@@ -1,36 +1,21 @@
 $ErrorActionPreference = "Stop"
 
 # ============================================================
-# CONFIGURATION
+# CONFIG
 # ============================================================
 
-# Your corporate Nexus Maven repository
 $Repo = "https://digitalnexus02.systems.uk.hsbc:8081/nexus/repository/maven-group"
 
-# Connector we want to resolve
 $RootGroup    = "com.google.cloud"
 $RootArtifact = "pubsub-group-kafka-connector"
 $RootVersion  = "1.3.3"
 
-# Output
 $OutputRoot = ".\pubsub-group-kafka-connector"
 $LibDir     = Join-Path $OutputRoot "lib"
 $PomCache   = Join-Path $OutputRoot "_pom-cache"
 
-New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
-New-Item -ItemType Directory -Force -Path $LibDir     | Out-Null
-New-Item -ItemType Directory -Force -Path $PomCache   | Out-Null
-
-
-# ============================================================
-# NEXUS CREDENTIALS
-# ============================================================
-
-# CHANGE THIS to the same Nexus username used in settings.xml
+# Nexus credentials
 $Username = "YOUR_NEXUS_USERNAME"
-
-# Password will be requested when script starts.
-# Nothing is saved in this file.
 $Password = Read-Host "Enter Nexus password" -AsSecureString
 
 $Credential = New-Object `
@@ -41,15 +26,28 @@ $Credential = New-Object `
 
 
 # ============================================================
-# STATE
+# CLEAN OUTPUT
 # ============================================================
 
-$Processed = @{}
+New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
+New-Item -ItemType Directory -Force -Path $LibDir     | Out-Null
+New-Item -ItemType Directory -Force -Path $PomCache   | Out-Null
+
+
+# ============================================================
+# GLOBAL RESOLUTION STATE
+# ============================================================
+
 $ManagedVersions = @{}
+$Processed       = @{}
+$Downloaded      = @{}
+$ResolvedGA      = @{}
+
+$DependencyReport = @()
 
 
 # ============================================================
-# DOWNLOAD FROM NEXUS
+# NEXUS DOWNLOAD
 # ============================================================
 
 function Invoke-NexusDownload {
@@ -60,11 +58,10 @@ function Invoke-NexusDownload {
     )
 
     if (Test-Path $OutFile) {
-        Write-Host "[CACHE] $OutFile" -ForegroundColor DarkGray
         return
     }
 
-    Write-Host "[GET] $Url"
+    Write-Host "[GET] $Url" -ForegroundColor DarkGray
 
     Invoke-WebRequest `
         -Uri $Url `
@@ -75,43 +72,43 @@ function Invoke-NexusDownload {
 
 # ============================================================
 # PROPERTY RESOLUTION
-# e.g. ${grpc.version}
+# ${grpc.version}, ${project.version}, etc.
 # ============================================================
 
 function Resolve-Value {
 
     param(
         [string]$Value,
-        [hashtable]$Props
+        [hashtable]$Properties
     )
 
     if ([string]::IsNullOrWhiteSpace($Value)) {
         return $Value
     }
 
-    $result = $Value
+    $Result = $Value
 
     for ($i = 0; $i -lt 30; $i++) {
 
-        if ($result -notmatch '\$\{([^}]+)\}') {
+        if ($Result -notmatch '\$\{([^}]+)\}') {
             break
         }
 
-        $propertyName = $Matches[1]
+        $PropertyName = $Matches[1]
 
-        if (-not $Props.ContainsKey($propertyName)) {
+        if (-not $Properties.ContainsKey($PropertyName)) {
             break
         }
 
-        $replacement = [string]$Props[$propertyName]
+        $Replacement = [string]$Properties[$PropertyName]
 
-        $result = $result.Replace(
-            '${' + $propertyName + '}',
-            $replacement
+        $Result = $Result.Replace(
+            '${' + $PropertyName + '}',
+            $Replacement
         )
     }
 
-    return $result
+    return $Result
 }
 
 
@@ -129,10 +126,11 @@ function Get-Pom {
 
     $GroupPath = $Group.Replace(".", "/")
 
-    $SafeName = "$Group-$Artifact-$Version" `
-        -replace '[^\w\-\.]', '_'
+    $SafeName =
+        "$Group-$Artifact-$Version" -replace '[^\w\-.]', '_'
 
-    $PomFile = Join-Path $PomCache "$SafeName.pom"
+    $PomFile =
+        Join-Path $PomCache "$SafeName.pom"
 
     $PomUrl =
         "$Repo/$GroupPath/$Artifact/$Version/$Artifact-$Version.pom"
@@ -146,61 +144,136 @@ function Get-Pom {
 
 
 # ============================================================
-# READ PROPERTIES FROM POM
+# COPY PROPERTIES
 # ============================================================
 
 function Add-PomProperties {
 
     param(
         [xml]$Pom,
-        [hashtable]$Props
+        [hashtable]$Properties
     )
 
-    if ($Pom.project.properties) {
+    if (-not $Pom.project.properties) {
+        return
+    }
 
-        foreach ($Property in $Pom.project.properties.ChildNodes) {
+    foreach ($Property in $Pom.project.properties.ChildNodes) {
 
-            if ($Property.NodeType -eq "Element") {
+        if ($Property.NodeType -eq "Element") {
 
-                $Props[$Property.Name] =
-                    $Property.InnerText.Trim()
-            }
+            $Properties[$Property.Name] =
+                $Property.InnerText.Trim()
         }
     }
 }
 
 
 # ============================================================
-# IMPORT DEPENDENCY MANAGEMENT / BOM
+# LOAD PARENT PROPERTIES + DEPENDENCY MANAGEMENT
 # ============================================================
 
-function Import-DependencyManagement {
+function Import-PomContext {
 
     param(
         [xml]$Pom,
-        [hashtable]$Props
+        [hashtable]$Properties
     )
+
+    # --------------------------------------------------------
+    # Parent first
+    # --------------------------------------------------------
+
+    if ($Pom.project.parent) {
+
+        $ParentGroup =
+            Resolve-Value `
+                ([string]$Pom.project.parent.groupId) `
+                $Properties
+
+        $ParentArtifact =
+            Resolve-Value `
+                ([string]$Pom.project.parent.artifactId) `
+                $Properties
+
+        $ParentVersion =
+            Resolve-Value `
+                ([string]$Pom.project.parent.version) `
+                $Properties
+
+        if (
+            $ParentGroup -and
+            $ParentArtifact -and
+            $ParentVersion
+        ) {
+
+            try {
+
+                $ParentPom =
+                    Get-Pom `
+                        $ParentGroup `
+                        $ParentArtifact `
+                        $ParentVersion
+
+                Import-PomContext `
+                    $ParentPom `
+                    $Properties
+
+                Add-PomProperties `
+                    $ParentPom `
+                    $Properties
+            }
+            catch {
+
+                Write-Warning `
+                    "Could not process parent: $ParentGroup`:$ParentArtifact`:$ParentVersion"
+            }
+        }
+    }
+
+
+    # --------------------------------------------------------
+    # Current properties override parent
+    # --------------------------------------------------------
+
+    Add-PomProperties `
+        $Pom `
+        $Properties
+
+
+    # --------------------------------------------------------
+    # dependencyManagement
+    # --------------------------------------------------------
 
     if (-not $Pom.project.dependencyManagement) {
         return
     }
 
-    $Dependencies =
+    foreach (
+        $Dependency in
         $Pom.project.dependencyManagement.dependencies.dependency
-
-    foreach ($Dependency in $Dependencies) {
+    ) {
 
         $Group =
-            Resolve-Value ([string]$Dependency.groupId) $Props
+            Resolve-Value `
+                ([string]$Dependency.groupId) `
+                $Properties
 
         $Artifact =
-            Resolve-Value ([string]$Dependency.artifactId) $Props
+            Resolve-Value `
+                ([string]$Dependency.artifactId) `
+                $Properties
 
         $Version =
-            Resolve-Value ([string]$Dependency.version) $Props
+            Resolve-Value `
+                ([string]$Dependency.version) `
+                $Properties
 
-        $Type  = [string]$Dependency.type
-        $Scope = [string]$Dependency.scope
+        $Type =
+            [string]$Dependency.type
+
+        $Scope =
+            [string]$Dependency.scope
 
         if (-not $Type) {
             $Type = "jar"
@@ -208,12 +281,19 @@ function Import-DependencyManagement {
 
 
         # ----------------------------------------------------
-        # Imported Maven BOM
+        # Imported BOM
         # ----------------------------------------------------
 
-        if ($Type -eq "pom" -and $Scope -eq "import") {
+        if (
+            $Type -eq "pom" -and
+            $Scope -eq "import"
+        ) {
 
-            if ($Group -and $Artifact -and $Version) {
+            if (
+                $Group -and
+                $Artifact -and
+                $Version
+            ) {
 
                 Write-Host `
                     "[BOM] $Group`:$Artifact`:$Version" `
@@ -227,24 +307,20 @@ function Import-DependencyManagement {
                             $Artifact `
                             $Version
 
-                    $BomProps = @{}
+                    $BomProperties = @{}
 
-                    foreach ($Key in $Props.Keys) {
-                        $BomProps[$Key] = $Props[$Key]
+                    foreach ($Key in $Properties.Keys) {
+                        $BomProperties[$Key] = $Properties[$Key]
                     }
 
-                    Add-PomProperties `
+                    Import-PomContext `
                         $BomPom `
-                        $BomProps
-
-                    Import-DependencyManagement `
-                        $BomPom `
-                        $BomProps
+                        $BomProperties
                 }
                 catch {
 
                     Write-Warning `
-                        "Unable to process BOM: $Group`:$Artifact`:$Version"
+                        "Could not process BOM: $Group`:$Artifact`:$Version"
                 }
             }
 
@@ -253,53 +329,110 @@ function Import-DependencyManagement {
 
 
         # ----------------------------------------------------
-        # Normal managed dependency
+        # Standard managed version
         # ----------------------------------------------------
 
-        if ($Group -and $Artifact -and $Version) {
+        if (
+            $Group -and
+            $Artifact -and
+            $Version
+        ) {
 
-            $Key = "$Group`:$Artifact"
-
-            $ManagedVersions[$Key] = $Version
+            $ManagedVersions["$Group`:$Artifact"] =
+                $Version
         }
     }
 }
 
 
 # ============================================================
-# PROCESS ARTIFACT
+# DOWNLOAD ONE JAR
 # ============================================================
 
-function Process-Artifact {
+function Download-Jar {
+
+    param(
+        [string]$Group,
+        [string]$Artifact,
+        [string]$Version
+    )
+
+    $Coordinate =
+        "$Group`:$Artifact`:$Version"
+
+    if ($Downloaded.ContainsKey($Coordinate)) {
+        return
+    }
+
+    $GroupPath =
+        $Group.Replace(".", "/")
+
+    $JarName =
+        "$Artifact-$Version.jar"
+
+    $JarUrl =
+        "$Repo/$GroupPath/$Artifact/$Version/$JarName"
+
+    $JarFile =
+        Join-Path $LibDir $JarName
+
+    try {
+
+        Invoke-NexusDownload `
+            -Url $JarUrl `
+            -OutFile $JarFile
+
+        $Downloaded[$Coordinate] = $true
+
+        Write-Host `
+            "[JAR] $Coordinate" `
+            -ForegroundColor Green
+
+        $script:DependencyReport += [PSCustomObject]@{
+            GroupId    = $Group
+            ArtifactId = $Artifact
+            Version    = $Version
+            File       = $JarName
+        }
+    }
+    catch {
+
+        Write-Warning `
+            "Could not download JAR: $Coordinate"
+    }
+}
+
+
+# ============================================================
+# RECURSIVE RUNTIME DEPENDENCY RESOLUTION
+# ============================================================
+
+function Resolve-Dependencies {
 
     param(
         [string]$Group,
         [string]$Artifact,
         [string]$Version,
-        [bool]$DownloadJar = $true
+        [hashtable]$InheritedExclusions
     )
 
-    $Key = "$Group`:$Artifact`:$Version"
+    $Coordinate =
+        "$Group`:$Artifact`:$Version"
 
-    if ($Processed.ContainsKey($Key)) {
+    if ($Processed.ContainsKey($Coordinate)) {
         return
     }
 
-    $Processed[$Key] = $true
+    $Processed[$Coordinate] = $true
 
     Write-Host ""
-    Write-Host "==========================================" `
-        -ForegroundColor Cyan
-
-    Write-Host "Processing $Key" `
-        -ForegroundColor Cyan
-
-    Write-Host "==========================================" `
+    Write-Host `
+        "[PROCESS] $Coordinate" `
         -ForegroundColor Cyan
 
 
     # --------------------------------------------------------
-    # GET POM
+    # Load POM
     # --------------------------------------------------------
 
     try {
@@ -312,133 +445,45 @@ function Process-Artifact {
     }
     catch {
 
-        Write-Warning "Could not download POM: $Key"
+        Write-Warning `
+            "Could not retrieve POM: $Coordinate"
+
         return
     }
 
 
     # --------------------------------------------------------
-    # LOCAL PROPERTY MAP
+    # Build Maven properties
     # --------------------------------------------------------
 
-    $Props = @{
+    $Properties = @{}
 
-        "project.groupId"    = $Group
-        "project.artifactId" = $Artifact
-        "project.version"    = $Version
+    $Properties["project.groupId"] =
+        $Group
 
-        "pom.groupId"        = $Group
-        "pom.artifactId"     = $Artifact
-        "pom.version"        = $Version
-    }
+    $Properties["project.artifactId"] =
+        $Artifact
 
-    Add-PomProperties `
+    $Properties["project.version"] =
+        $Version
+
+    $Properties["pom.groupId"] =
+        $Group
+
+    $Properties["pom.artifactId"] =
+        $Artifact
+
+    $Properties["pom.version"] =
+        $Version
+
+
+    Import-PomContext `
         $Pom `
-        $Props
+        $Properties
 
 
     # --------------------------------------------------------
-    # PARENT POM
-    # --------------------------------------------------------
-
-    if ($Pom.project.parent) {
-
-        $ParentGroup =
-            Resolve-Value `
-                ([string]$Pom.project.parent.groupId) `
-                $Props
-
-        $ParentArtifact =
-            Resolve-Value `
-                ([string]$Pom.project.parent.artifactId) `
-                $Props
-
-        $ParentVersion =
-            Resolve-Value `
-                ([string]$Pom.project.parent.version) `
-                $Props
-
-        if (
-            $ParentGroup -and
-            $ParentArtifact -and
-            $ParentVersion
-        ) {
-
-            Write-Host `
-                "[PARENT] $ParentGroup`:$ParentArtifact`:$ParentVersion" `
-                -ForegroundColor DarkYellow
-
-            try {
-
-                $ParentPom =
-                    Get-Pom `
-                        $ParentGroup `
-                        $ParentArtifact `
-                        $ParentVersion
-
-                Add-PomProperties `
-                    $ParentPom `
-                    $Props
-
-                Import-DependencyManagement `
-                    $ParentPom `
-                    $Props
-            }
-            catch {
-
-                Write-Warning `
-                    "Unable to process parent POM: $ParentGroup`:$ParentArtifact`:$ParentVersion"
-            }
-        }
-    }
-
-
-    # --------------------------------------------------------
-    # CURRENT POM DEPENDENCY MANAGEMENT
-    # --------------------------------------------------------
-
-    Import-DependencyManagement `
-        $Pom `
-        $Props
-
-
-    # --------------------------------------------------------
-    # DOWNLOAD THIS ARTIFACT JAR
-    # --------------------------------------------------------
-
-    if ($DownloadJar) {
-
-        $GroupPath = $Group.Replace(".", "/")
-
-        $JarName =
-            "$Artifact-$Version.jar"
-
-        $JarUrl =
-            "$Repo/$GroupPath/$Artifact/$Version/$JarName"
-
-        $JarFile =
-            Join-Path $LibDir $JarName
-
-        try {
-
-            Invoke-NexusDownload `
-                -Url $JarUrl `
-                -OutFile $JarFile
-
-            Write-Host `
-                "[JAR] $Key" `
-                -ForegroundColor Green
-        }
-        catch {
-
-            Write-Warning `
-                "Could not download JAR: $Key"
-        }
-    }
-
-
-    # --------------------------------------------------------
-    # PROCESS DEPENDENCIES
+    # Process dependencies
     # --------------------------------------------------------
 
     if (-not $Pom.project.dependencies) {
@@ -459,7 +504,6 @@ function Process-Artifact {
         $Type =
             [string]$Dependency.type
 
-
         if (-not $Scope) {
             $Scope = "compile"
         }
@@ -470,15 +514,13 @@ function Process-Artifact {
 
 
         # ----------------------------------------------------
-        # DO NOT PACKAGE THESE
+        # Runtime only
         # ----------------------------------------------------
 
         if (
-            $Scope -in @(
-                "test",
-                "provided",
-                "system"
-            )
+            $Scope -eq "test" -or
+            $Scope -eq "provided" -or
+            $Scope -eq "system"
         ) {
 
             Write-Host `
@@ -505,51 +547,60 @@ function Process-Artifact {
 
 
         # ----------------------------------------------------
-        # RESOLVE COORDINATES
+        # Coordinates
         # ----------------------------------------------------
 
         $DepGroup =
             Resolve-Value `
                 ([string]$Dependency.groupId) `
-                $Props
+                $Properties
 
         $DepArtifact =
             Resolve-Value `
                 ([string]$Dependency.artifactId) `
-                $Props
+                $Properties
 
         $DepVersion =
             Resolve-Value `
                 ([string]$Dependency.version) `
-                $Props
+                $Properties
 
 
         # ----------------------------------------------------
-        # VERSION FROM dependencyManagement/BOM
+        # Apply exclusion inherited from parent dependency
         # ----------------------------------------------------
 
-        if (-not $DepVersion) {
+        $GA =
+            "$DepGroup`:$DepArtifact"
 
-            $ManagedKey =
-                "$DepGroup`:$DepArtifact"
+        if (
+            $InheritedExclusions -and
+            $InheritedExclusions.ContainsKey($GA)
+        ) {
 
-            if (
-                $ManagedVersions.ContainsKey(
-                    $ManagedKey
-                )
-            ) {
+            Write-Host `
+                "[SKIP:excluded] $GA" `
+                -ForegroundColor DarkGray
 
-                $DepVersion =
-                    Resolve-Value `
-                        $ManagedVersions[$ManagedKey] `
-                        $Props
-            }
+            continue
         }
 
 
         # ----------------------------------------------------
-        # VALIDATE
+        # Version from dependencyManagement/BOM
         # ----------------------------------------------------
+
+        if (-not $DepVersion) {
+
+            if ($ManagedVersions.ContainsKey($GA)) {
+
+                $DepVersion =
+                    Resolve-Value `
+                        $ManagedVersions[$GA] `
+                        $Properties
+            }
+        }
+
 
         if (
             -not $DepGroup -or
@@ -558,58 +609,149 @@ function Process-Artifact {
         ) {
 
             Write-Warning `
-                "UNRESOLVED: $DepGroup : $DepArtifact : $DepVersion"
+                "UNRESOLVED dependency: $DepGroup : $DepArtifact : $DepVersion"
 
             continue
         }
 
 
-        Write-Host `
-            "[DEPENDENCY] $DepGroup`:$DepArtifact`:$DepVersion"
+        # ----------------------------------------------------
+        # Maven-style first resolved version wins
+        # Avoid putting multiple versions of same GA in lib
+        # ----------------------------------------------------
+
+        if ($ResolvedGA.ContainsKey($GA)) {
+
+            if ($ResolvedGA[$GA] -ne $DepVersion) {
+
+                Write-Host `
+                    "[CONFLICT] $GA requested $DepVersion, already using $($ResolvedGA[$GA])" `
+                    -ForegroundColor Magenta
+            }
+
+            continue
+        }
+
+        $ResolvedGA[$GA] =
+            $DepVersion
 
 
         # ----------------------------------------------------
-        # RECURSE
+        # Collect exclusions declared on this dependency
         # ----------------------------------------------------
 
-        Process-Artifact `
+        $ChildExclusions = @{}
+
+        if ($InheritedExclusions) {
+
+            foreach ($Key in $InheritedExclusions.Keys) {
+                $ChildExclusions[$Key] = $true
+            }
+        }
+
+
+        if ($Dependency.exclusions) {
+
+            foreach (
+                $Exclusion in
+                $Dependency.exclusions.exclusion
+            ) {
+
+                $ExGroup =
+                    Resolve-Value `
+                        ([string]$Exclusion.groupId) `
+                        $Properties
+
+                $ExArtifact =
+                    Resolve-Value `
+                        ([string]$Exclusion.artifactId) `
+                        $Properties
+
+                if (
+                    $ExGroup -and
+                    $ExArtifact
+                ) {
+
+                    $ChildExclusions[
+                        "$ExGroup`:$ExArtifact"
+                    ] = $true
+                }
+            }
+        }
+
+
+        # ----------------------------------------------------
+        # Download INDIVIDUAL dependency JAR
+        # ----------------------------------------------------
+
+        Download-Jar `
+            $DepGroup `
+            $DepArtifact `
+            $DepVersion
+
+
+        # ----------------------------------------------------
+        # Resolve its transitives
+        # ----------------------------------------------------
+
+        Resolve-Dependencies `
             $DepGroup `
             $DepArtifact `
             $DepVersion `
-            $true
+            $ChildExclusions
     }
 }
 
 
 # ============================================================
-# START FROM GOOGLE PUBSUB CONNECTOR
+# START
+#
+# IMPORTANT:
+# We resolve the connector POM but DO NOT download the
+# 63MB shaded connector JAR.
 # ============================================================
 
 Write-Host ""
-Write-Host "Starting Pub/Sub connector dependency download..." `
-    -ForegroundColor Cyan
+Write-Host "============================================"
+Write-Host "Pub/Sub runtime dependency download"
+Write-Host "============================================"
+Write-Host ""
 
-Process-Artifact `
+Write-Host "Connector:"
+Write-Host "$RootGroup`:$RootArtifact`:$RootVersion"
+Write-Host ""
+
+Write-Host "The shaded connector JAR will NOT be downloaded."
+Write-Host "Only individual runtime dependency JARs go into lib/."
+Write-Host ""
+
+
+$EmptyExclusions = @{}
+
+Resolve-Dependencies `
     $RootGroup `
     $RootArtifact `
     $RootVersion `
-    $true
+    $EmptyExclusions
 
 
 # ============================================================
-# RESULTS
+# WRITE FOSS REPORT
 # ============================================================
 
-Write-Host ""
-Write-Host "==========================================" `
-    -ForegroundColor Cyan
+$CsvFile =
+    Join-Path $OutputRoot "runtime-dependencies.csv"
 
-Write-Host "DOWNLOAD FINISHED" `
-    -ForegroundColor Cyan
+$DependencyReport |
+    Sort-Object GroupId, ArtifactId |
+    Export-Csv `
+        -Path $CsvFile `
+        -NoTypeInformation
 
-Write-Host "==========================================" `
-    -ForegroundColor Cyan
 
+# ============================================================
+# RESULT
+# ============================================================
 
 $Jars =
     Get-ChildItem `
@@ -618,8 +760,23 @@ $Jars =
 
 
 Write-Host ""
-Write-Host "Downloaded JARs: $($Jars.Count)"
-Write-Host "Directory: $LibDir"
+Write-Host "============================================"
+Write-Host "FINISHED"
+Write-Host "============================================"
+
+Write-Host ""
+Write-Host "Individual runtime JARs: $($Jars.Count)"
+Write-Host "JAR directory:"
+Write-Host "  $LibDir"
+
+Write-Host ""
+Write-Host "Dependency report:"
+Write-Host "  $CsvFile"
+
+Write-Host ""
+Write-Host "NOTE:"
+Write-Host "  pubsub-group-kafka-connector-1.3.3.jar"
+Write-Host "  is intentionally NOT in lib/."
 Write-Host ""
 
 $Jars |
