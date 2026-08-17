@@ -1,7 +1,6 @@
 # `tint`: 🌈 **slog.Handler** that writes tinted logs
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/lmittmann/tint.svg)](https://pkg.go.dev/github.com/lmittmann/tint#section-documentation)
-[![Go Report Card](https://goreportcard.com/badge/github.com/lmittmann/tint)](https://goreportcard.com/report/github.com/lmittmann/tint)
 
 <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://github.com/lmittmann/tint/assets/3458786/3d42f8d5-8bdf-40db-a16a-1939c88689cb">
@@ -27,12 +26,12 @@ go get github.com/lmittmann/tint
 ```go
 w := os.Stderr
 
-// create a new logger
-logger := slog.New(tint.NewHandler(w, nil))
+// Create a new logger
+logger := slog.New(tint.NewTextHandler(w, nil))
 
-// set global logger with custom options
+// Set global logger with custom options
 slog.SetDefault(slog.New(
-    tint.NewHandler(w, &tint.Options{
+    tint.NewTextHandler(w, &tint.Options{
         Level:      slog.LevelDebug,
         TimeFormat: time.Kitchen,
     }),
@@ -46,10 +45,29 @@ each non-group attribute before it is logged. See [`slog.HandlerOptions`](https:
 for details.
 
 ```go
-// create a new logger that doesn't write the time
+// Create a new logger with a custom TRACE level:
+const LevelTrace = slog.LevelDebug - 4
+
+w := os.Stderr
+logger := slog.New(tint.NewTextHandler(w, &tint.Options{
+    Level: LevelTrace,
+    ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+        if a.Key == slog.LevelKey && len(groups) == 0 {
+            level, ok := a.Value.Any().(slog.Level)
+            if ok && level <= LevelTrace {
+                return tint.Attr(13, slog.String(a.Key, "TRC"))
+            }
+        }
+        return a
+    },
+}))
+```
+
+```go
+// Create a new logger that doesn't write the time
 w := os.Stderr
 logger := slog.New(
-    tint.NewHandler(w, &tint.Options{
+    tint.NewTextHandler(w, &tint.Options{
         ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
             if a.Key == slog.TimeKey && len(groups) == 0 {
                 return slog.Attr{}
@@ -61,15 +79,15 @@ logger := slog.New(
 ```
 
 ```go
-// create a new logger that writes all errors in red
+// Create a new logger that writes all errors in red
 w := os.Stderr
 logger := slog.New(
-    tint.NewHandler(w, &tint.Options{
+    tint.NewTextHandler(w, &tint.Options{
         ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
-            if err, ok := a.Value.Any().(error); ok {
-                aErr := tint.Err(err)
-                aErr.Key = a.Key
-                return aErr
+            if a.Value.Kind() == slog.KindAny {
+                if _, ok := a.Value.Any().(error); ok {
+                    return tint.Attr(9, a)
+                }
             }
             return a
         },
@@ -79,14 +97,14 @@ logger := slog.New(
 
 ### Automatically Enable Colors
 
-Colors are enabled by default and can be disabled using the `Options.NoColor`
-attribute. To automatically enable colors based on the terminal capabilities,
-use e.g. the [`go-isatty`](https://github.com/mattn/go-isatty) package.
+Colors are enabled by default. Use the `Options.NoColor` field to disable
+color output. To automatically enable colors based on terminal capabilities, use
+e.g., the [`go-isatty`](https://github.com/mattn/go-isatty) package:
 
 ```go
 w := os.Stderr
 logger := slog.New(
-    tint.NewHandler(w, &tint.Options{
+    tint.NewTextHandler(w, &tint.Options{
         NoColor: !isatty.IsTerminal(w.Fd()),
     }),
 )
@@ -94,12 +112,12 @@ logger := slog.New(
 
 ### Windows Support
 
-Color support on Windows can be added by using e.g. the
-[`go-colorable`](https://github.com/mattn/go-colorable) package.
+Color support on Windows can be added by using e.g., the
+[`go-colorable`](https://github.com/mattn/go-colorable) package:
 
 ```go
 w := os.Stderr
 logger := slog.New(
-    tint.NewHandler(colorable.NewColorable(w), nil),
+    tint.NewTextHandler(colorable.NewColorable(w), nil),
 )
 ```

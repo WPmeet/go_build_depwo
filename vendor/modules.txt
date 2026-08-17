@@ -1382,7 +1382,7 @@ github.com/lib/pq/scram
 # github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de
 ## explicit
 github.com/liggitt/tabwriter
-# github.com/lmittmann/tint v1.0.7
+# github.com/lmittmann/tint v1.2.0
 ## explicit; go 1.21
 github.com/lmittmann/tint
 # github.com/lucasb-eyer/go-colorful v1.2.0
