@@ -1396,7 +1396,7 @@ github.com/mailru/easyjson/jwriter
 # github.com/masahiro331/go-mvn-version v0.0.0-20210429150710-d3157d602a08
 ## explicit; go 1.15
 github.com/masahiro331/go-mvn-version
-# github.com/mattn/go-colorable v0.1.14
+# github.com/mattn/go-colorable v0.1.15
 ## explicit; go 1.18
 github.com/mattn/go-colorable
 # github.com/mattn/go-isatty v0.0.20
