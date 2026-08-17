@@ -24,7 +24,7 @@ require (
 	github.com/rakyll/hey v0.1.4
 	github.com/sahilm/fuzzy v0.1.1
 	github.com/spf13/cobra v1.10.1
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.0
 	github.com/xeipuuv/gojsonschema v1.2.0
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b
 	golang.org/x/text v0.29.0
